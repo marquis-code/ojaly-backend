@@ -159,6 +159,15 @@ export class Booking {
   @Prop({ type: Number, default: 0 })
   serviceChargePercent: number;
 
+  @Prop({ type: Number, default: 0 })
+  providerFeeKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  providerFeePercent: number;
+
+  @Prop({ type: Number, default: 0 })
+  providerNetKobo: number;
+
   @Prop({ type: Number, required: true })
   priceKobo: number;
 

@@ -434,6 +434,28 @@ export class AdminService {
     };
   }
 
+  async updateProviderFee(actorId: string, businessId: string, dto: { enabled: boolean; type: 'percent' | 'fixed'; percent?: number; fixedKobo?: number }) {
+    const business = await this.businesses.findById(businessId).exec();
+    if (!business) throw new NotFoundException('Business not found.');
+    business.providerFeeEnabled = dto.enabled;
+    business.providerFeeType = dto.type;
+    business.providerFeePercent = dto.percent ?? 0;
+    business.providerFeeFixedKobo = dto.fixedKobo ?? 0;
+    await business.save();
+    await this.audit.record({
+      businessId, actorId, actorType: 'platform_admin',
+      action: 'admin.business_provider_fee', entity: 'business', entityId: businessId,
+      metadata: { enabled: dto.enabled, type: dto.type, percent: dto.percent, fixedKobo: dto.fixedKobo },
+    });
+    return {
+      updated: true,
+      providerFee: {
+        enabled: business.providerFeeEnabled, type: business.providerFeeType,
+        percent: business.providerFeePercent, fixedKobo: business.providerFeeFixedKobo,
+      },
+    };
+  }
+
   async listPlans() {
     const plans = await this.plans.find({}).sort({ sortOrder: 1 }).lean().exec();
     const counts = await this.subscriptions.aggregate([{ $group: { _id: '$planKey', count: { $sum: 1 } } }]).exec();

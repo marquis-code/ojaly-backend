@@ -20,6 +20,7 @@ import {
   ExtendTrialDto,
   SuspendBusinessDto,
   UpdatePlanDto,
+  UpdateProviderFeeDto,
   UpdateServiceChargeDto,
 } from './dto/admin.dto';
 import type { AuthenticatedUser } from '../../common/types/auth.types';
@@ -109,6 +110,16 @@ export class AdminController {
     @Body() dto: UpdateServiceChargeDto,
   ) {
     return this.admin.updateServiceCharge(user.id, id, dto);
+  }
+
+  @PlatformRoles('super_admin')
+  @Patch('businesses/:id/provider-fee')
+  updateProviderFee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateProviderFeeDto,
+  ) {
+    return this.admin.updateProviderFee(user.id, id, dto);
   }
 
   @Get('plans')

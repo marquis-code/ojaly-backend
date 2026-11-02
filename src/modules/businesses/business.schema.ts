@@ -20,6 +20,7 @@ export interface BookingSettings {
   slotIntervalMinutes: number;
   cancellationWindowHours: number;
   depositPercent: number;
+  paymentCollection: 'deposit' | 'full';
   reminderHoursBefore: number;
   weeklyHours: WeeklyHours[];
   closedDates: string[];
@@ -44,6 +45,7 @@ export const defaultBookingSettings = (): BookingSettings => ({
   slotIntervalMinutes: 30,
   cancellationWindowHours: 24,
   depositPercent: 0,
+  paymentCollection: 'deposit',
   reminderHoursBefore: 24,
   weeklyHours: defaultWeeklyHours,
   closedDates: [],
@@ -203,6 +205,18 @@ export class Business {
 
   @Prop({ type: Number, default: 0, min: 0 })
   serviceChargeFixedKobo: number;
+
+  @Prop({ type: Boolean, default: false })
+  providerFeeEnabled: boolean;
+
+  @Prop({ type: String, enum: ['percent', 'fixed'], default: 'percent' })
+  providerFeeType: 'percent' | 'fixed';
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  providerFeePercent: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  providerFeeFixedKobo: number;
 
   @Prop({ type: Boolean, default: false })
   customDomainVerified: boolean;

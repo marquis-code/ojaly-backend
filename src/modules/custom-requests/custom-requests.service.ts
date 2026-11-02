@@ -201,6 +201,7 @@ export class CustomRequestsService {
         serviceChargeType: business.serviceChargeType || 'percent',
         serviceChargePercent: business.serviceChargePercent || 0,
         serviceChargeFixedKobo: business.serviceChargeFixedKobo || 0,
+        bookingSettings: business.bookingSettings || null,
       } : null,
     };
   }

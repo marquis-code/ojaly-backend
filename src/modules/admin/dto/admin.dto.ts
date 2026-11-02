@@ -443,6 +443,31 @@ export class AuditQueryDto {
   limit = 30;
 }
 
+export class UpdateProviderFeeDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  enabled: boolean;
+
+  @ApiProperty({ example: 'percent', enum: ['percent', 'fixed'] })
+  @IsIn(['percent', 'fixed'])
+  type: 'percent' | 'fixed';
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percent?: number;
+
+  @ApiPropertyOptional({ example: 50000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  fixedKobo?: number;
+}
+
 export class UpdateServiceChargeDto {
   @ApiProperty({ example: true })
   @IsBoolean()

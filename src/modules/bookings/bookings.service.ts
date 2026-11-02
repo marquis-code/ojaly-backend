@@ -19,6 +19,8 @@ import { campusByCode } from '../campus/campus.constants';
 import { DebtsService } from '../debts/debts.service';
 import { ReceiptsService } from '../receipts/receipts.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
+import { WhatsappClientService } from '../whatsapp/whatsapp-client.service';
+import { formatNaira } from '../../common/utils/money';
 import { AvailabilityService } from './availability.service';
 import { Booking, BookingDocument, BookingStatus } from './booking.schema';
 import { nextSequence } from '../../common/utils/order-number';
@@ -53,6 +55,7 @@ export class BookingsService {
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
     private readonly sms: SmsService,
+    private readonly whatsapp: WhatsappClientService,
     private readonly packages: PackagesService,
     private readonly calendarSync: CalendarService,
     private readonly config: ConfigService,
@@ -92,7 +95,7 @@ export class BookingsService {
       this.bookings.countDocuments({ businessId, status: 'pending' }).exec(),
     ]);
     return {
-      items: items.map((b) => this.view(b)),
+      items: items.map((b) => ({ ...this.view(b), providerFeeKobo: b.providerFeeKobo || 0, providerNetKobo: b.providerNetKobo || 0 })),
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
       summary: { today: todayCount, upcoming: upcomingCount, pending: pendingCount },
     };
@@ -157,7 +160,7 @@ export class BookingsService {
   async findOne(businessId: string, id: string) {
     const booking = await this.bookings.findOne({ _id: id, businessId }).lean().exec();
     if (!booking) throw new NotFoundException('Booking not found.');
-    return this.view(booking);
+    return { ...this.view(booking), providerFeeKobo: booking.providerFeeKobo || 0, providerNetKobo: booking.providerNetKobo || 0 };
   }
 
   async create(
@@ -201,6 +204,13 @@ export class BookingsService {
       }
     }
 
+    let providerFeeKobo = 0;
+    const providerFeePercent = business.providerFeePercent || 0;
+    if (business.providerFeeEnabled && subtotalKobo > 0) {
+      if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(subtotalKobo, business.providerFeeFixedKobo || 0);
+      else providerFeeKobo = Math.min(subtotalKobo, Math.round((subtotalKobo * providerFeePercent) / 100));
+    }
+    const providerNetKobo = Math.max(0, subtotalKobo - providerFeeKobo);
     const totalKobo = subtotalKobo + serviceChargeKobo;
     const packageValueKobo = packageRedemption ? totalKobo : 0;
     const chargeKobo = packageRedemption ? 0 : totalKobo;
@@ -212,7 +222,8 @@ export class BookingsService {
       : service.requiresDeposit
         ? Math.min(subtotalKobo, service.depositKobo || Math.round((subtotalKobo * depositPercent) / 100))
         : 0;
-    const depositKobo = packageRedemption ? 0 : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
+    const collectFull = business.bookingSettings?.paymentCollection === 'full';
+    const depositKobo = packageRedemption ? 0 : collectFull ? totalKobo : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
     const shouldConfirm = packageRedemption ? true : Boolean(business.bookingSettings?.autoConfirm) && depositKobo <= 0;
     const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
     const endAt = addMinutes(startAt, durationMinutes);
@@ -283,6 +294,9 @@ export class BookingsService {
           subtotalKobo: packageRedemption ? 0 : subtotalKobo,
           serviceChargeKobo: packageRedemption ? 0 : serviceChargeKobo,
           serviceChargePercent: business.serviceChargeEnabled ? serviceChargePercent : 0,
+          providerFeeKobo,
+          providerFeePercent: business.providerFeeEnabled ? providerFeePercent : 0,
+          providerNetKobo,
           priceKobo: chargeKobo,
           packageValueKobo,
           marketplaceCampus: marketplaceCampus?.code || null,
@@ -776,6 +790,20 @@ export class BookingsService {
     return !Number.isNaN(d.getTime()) ? d : null;
   }
 
+  private async sendBookingMessages(booking: BookingDocument, business: BusinessDocument, when: string) {
+    const provider = await this.providers.findById(booking.providerId).lean().exec();
+    const providerPhone = provider?.phone || business.whatsappNumber || business.publicPhone;
+    const bookingUrl = `${this.config.get('appUrl')}/booking/${booking.publicToken}`;
+    const providerText = `New booking with ${business.name}: ${booking.customerName} booked ${booking.serviceName} with ${booking.providerName} for ${when}. Ref ${booking.bookingNumber}. Total ${formatNaira(booking.priceKobo)}. View: ${bookingUrl}`;
+    const customerText = `Booking confirmed with ${business.name}: ${booking.serviceName} with ${booking.providerName} on ${when}. Ref ${booking.bookingNumber}. Manage: ${bookingUrl}`;
+    const send = async (phone: string | null | undefined, text: string) => {
+      if (!phone) return;
+      const result = await this.whatsapp.send({ businessId: booking.businessId, phone, text }).catch(() => ({ sent: false }));
+      if (!result.sent) await this.sms.send({ to: phone, message: text }).catch(() => undefined);
+    };
+    await Promise.all([send(providerPhone, providerText), send(booking.customerPhone, customerText)]);
+  }
+
   private async sendConfirmation(booking: BookingDocument, business: BusinessDocument) {
     const when = new Intl.DateTimeFormat('en-NG', {
       timeZone: booking.timezone, weekday: 'short', day: 'numeric', month: 'short',
@@ -795,12 +823,7 @@ export class BookingsService {
       tone: 'success',
       data: { bookingId: booking._id.toString(), publicToken: booking.publicToken },
     });
-    if (!booking.customerEmail) {
-      await this.sms.send({
-        to: booking.customerPhone,
-        message: `${business.name}: your ${booking.serviceName} with ${booking.providerName} is booked for ${when}. Ref ${booking.bookingNumber}. Manage: ${this.config.get('appUrl')}/booking/${booking.publicToken}`,
-      }).catch(() => undefined);
-    }
+    await this.sendBookingMessages(booking, business, when).catch(() => undefined);
     if (booking.customerEmail) {
       const confirmation = bookingConfirmedEmail({
         customerName: booking.customerName, businessName: business.name,

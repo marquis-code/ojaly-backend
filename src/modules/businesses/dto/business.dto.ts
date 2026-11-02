@@ -212,6 +212,11 @@ export class BookingSettingsDto {
   @IsOptional()
   depositPercent?: number;
 
+  @ApiPropertyOptional({ enum: ['deposit', 'full'] })
+  @IsIn(['deposit', 'full'])
+  @IsOptional()
+  paymentCollection?: 'deposit' | 'full';
+
   @ApiPropertyOptional({ minimum: 0, maximum: 168 })
   @IsInt()
   @Min(0)
