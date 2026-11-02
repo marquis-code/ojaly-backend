@@ -22,6 +22,8 @@ export class MarketplaceService {
     const campus = input.campus && input.campus !== 'LAGOS' ? campusByCode(input.campus) : null;
     const filter: Record<string, unknown> = {
       storefrontPublished: true,
+      isSuspended: { $ne: true },
+      isDemo: { $ne: true },
       campusVerified: true,
       businessMode: { $in: ['services', 'hybrid'] },
       ...(campus ? { campusCode: campus.code } : {}),
@@ -58,8 +60,14 @@ export class MarketplaceService {
     return { campuses: LAGOS_CAMPUSES, categories, businesses: result, total: result.length };
   }
 
-  async demoBusinesses() {
-    const businesses = await this.businesses.find({ isDemo: true, storefrontPublished: true }).select('name slug tagline description logoUrl bannerUrl businessMode campusCode campusName address').limit(12).lean().exec();
+  async featuredBusinesses() {
+    const businesses = await this.businesses.find({
+      isDemo: { $ne: true },
+      isSuspended: { $ne: true },
+      storefrontPublished: true,
+      campusVerified: true,
+      businessMode: { $in: ['services', 'hybrid'] },
+    }).select('name slug tagline description logoUrl bannerUrl businessMode campusCode campusName address').sort({ createdAt: -1 }).limit(12).lean().exec();
     if (!businesses.length) return [];
     const ids = businesses.map((business) => business._id.toString());
     const [services, products] = await Promise.all([

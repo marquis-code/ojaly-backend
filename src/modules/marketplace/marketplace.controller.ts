@@ -18,9 +18,14 @@ export class MarketplaceController {
   constructor(private readonly marketplace: MarketplaceService) {}
 
   @Public()
+  @Get('featured')
+  featured() {
+    return this.marketplace.featuredBusinesses();
+  }
+
   @Get('demo')
   demo() {
-    return this.marketplace.demoBusinesses();
+    return this.marketplace.featuredBusinesses();
   }
 
   @Public()
