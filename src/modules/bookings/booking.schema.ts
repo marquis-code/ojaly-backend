@@ -150,6 +150,15 @@ export class Booking {
   @Prop({ type: String, default: '' })
   notes: string;
 
+  @Prop({ type: Number, default: 0 })
+  subtotalKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  serviceChargeKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  serviceChargePercent: number;
+
   @Prop({ type: Number, required: true })
   priceKobo: number;
 

@@ -189,17 +189,30 @@ export class BookingsService {
     const timezone = business.timezone || 'Africa/Lagos';
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes, { ignoreWindow: effectiveSource !== 'storefront' && effectiveSource !== 'marketplace' });
 
-    const totalKobo = overrides?.priceKobo ?? service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+    const subtotalKobo = overrides?.priceKobo ?? service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+
+    let serviceChargeKobo = 0;
+    const serviceChargePercent = business.serviceChargePercent || 0;
+    if (business.serviceChargeEnabled) {
+      if (business.serviceChargeType === 'fixed') {
+        serviceChargeKobo = business.serviceChargeFixedKobo || 0;
+      } else {
+        serviceChargeKobo = Math.round((subtotalKobo * serviceChargePercent) / 100);
+      }
+    }
+
+    const totalKobo = subtotalKobo + serviceChargeKobo;
     const packageValueKobo = packageRedemption ? totalKobo : 0;
     const chargeKobo = packageRedemption ? 0 : totalKobo;
     const marketplaceFeePercent = marketplaceCampus ? (business.marketplaceFeePercent ?? 5) : 0;
     const marketplaceFeeKobo = marketplaceCampus ? Math.round((chargeKobo * marketplaceFeePercent) / 100) : 0;
     const depositPercent = business.bookingSettings?.depositPercent || 0;
-    const depositKobo = packageRedemption ? 0 : overrides?.depositKobo !== undefined
-      ? Math.min(totalKobo, Math.max(0, overrides.depositKobo))
+    const baseDeposit = packageRedemption ? 0 : overrides?.depositKobo !== undefined
+      ? Math.min(subtotalKobo, Math.max(0, overrides.depositKobo))
       : service.requiresDeposit
-        ? Math.min(totalKobo, service.depositKobo || Math.round((totalKobo * depositPercent) / 100))
+        ? Math.min(subtotalKobo, service.depositKobo || Math.round((subtotalKobo * depositPercent) / 100))
         : 0;
+    const depositKobo = packageRedemption ? 0 : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
     const shouldConfirm = packageRedemption ? true : Boolean(business.bookingSettings?.autoConfirm) && depositKobo <= 0;
     const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
     const endAt = addMinutes(startAt, durationMinutes);
@@ -267,6 +280,9 @@ export class BookingsService {
           status: shouldConfirm ? 'confirmed' : 'pending',
           source: effectiveSource,
           notes: sanitizeText(dto.notes, 2000),
+          subtotalKobo: packageRedemption ? 0 : subtotalKobo,
+          serviceChargeKobo: packageRedemption ? 0 : serviceChargeKobo,
+          serviceChargePercent: business.serviceChargeEnabled ? serviceChargePercent : 0,
           priceKobo: chargeKobo,
           packageValueKobo,
           marketplaceCampus: marketplaceCampus?.code || null,
@@ -410,6 +426,30 @@ export class BookingsService {
     return { filename: `ojaly-${booking.bookingNumber}.ics`, content: `${lines.join('\r\n')}\r\n` };
   }
 
+  async lookupPublic(customerPhone: string, bookingNumber: string) {
+    const phone = normalizeNigerianPhone(customerPhone);
+    const reference = String(bookingNumber || '').trim().toUpperCase();
+    if (!phone || reference.length < 4) throw new BadRequestException('Enter the phone number used for the booking and the booking reference.');
+    const bookings = await this.bookings.find({ customerPhone: phone, bookingNumber: reference }).sort({ startAt: -1 }).limit(5).lean().exec();
+    if (!bookings.length) throw new NotFoundException('No booking matched that phone number and reference.');
+    const businessIds = [...new Set(bookings.map((b) => b.businessId))];
+    const businesses = await this.businesses.find({ _id: { $in: businessIds } }).lean().exec();
+    return bookings.map((booking) => {
+      const business = businesses.find((b) => String(b._id) === booking.businessId);
+      return {
+        bookingNumber: booking.bookingNumber,
+        publicToken: booking.publicToken,
+        serviceName: booking.serviceName,
+        startAt: booking.startAt,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+        businessName: business?.name || 'Ojaly business',
+        businessSlug: business?.slug || '',
+        timezone: booking.timezone || 'Africa/Lagos',
+      };
+    });
+  }
+
   async byToken(token: string) {
     const booking = await this.bookings.findOne({ publicToken: token }).lean().exec();
     if (!booking) throw new NotFoundException('Booking not found.');
@@ -421,6 +461,10 @@ export class BookingsService {
         logoUrl: business.logoUrl, brandColor: business.brandColor,
         publicPhone: business.publicPhone, whatsappNumber: business.whatsappNumber,
         address: business.address, bookingSettings: business.bookingSettings,
+        serviceChargeEnabled: Boolean(business.serviceChargeEnabled),
+        serviceChargeType: business.serviceChargeType || 'percent',
+        serviceChargePercent: business.serviceChargePercent || 0,
+        serviceChargeFixedKobo: business.serviceChargeFixedKobo || 0,
       } : null,
     };
   }
@@ -813,6 +857,9 @@ export class BookingsService {
       status: booking.status,
       source: booking.source,
       notes: booking.notes,
+      subtotalKobo: booking.subtotalKobo || booking.priceKobo,
+      serviceChargeKobo: booking.serviceChargeKobo || 0,
+      serviceChargePercent: booking.serviceChargePercent || 0,
       priceKobo: booking.priceKobo,
       depositKobo: booking.depositKobo,
       amountPaidKobo: booking.amountPaidKobo,

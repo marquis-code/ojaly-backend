@@ -38,6 +38,7 @@ import {
   ExtendTrialDto,
   SuspendBusinessDto,
   UpdatePlanDto,
+  UpdateServiceChargeDto,
 } from './dto/admin.dto';
 
 @Injectable()
@@ -395,6 +396,42 @@ export class AdminService {
       metadata: { reason: dto.reason },
     });
     return { suspended: business.isSuspended };
+  }
+
+  async updateServiceCharge(actorId: string, businessId: string, dto: UpdateServiceChargeDto) {
+    const business = await this.businesses.findById(businessId).exec();
+    if (!business) throw new NotFoundException('Business not found.');
+
+    business.serviceChargeEnabled = dto.enabled;
+    business.serviceChargeType = dto.type;
+    business.serviceChargePercent = dto.percent ?? 0;
+    business.serviceChargeFixedKobo = dto.fixedKobo ?? 0;
+    await business.save();
+
+    await this.audit.record({
+      businessId,
+      actorId,
+      actorType: 'platform_admin',
+      action: 'admin.business_service_charge',
+      entity: 'business',
+      entityId: businessId,
+      metadata: {
+        enabled: dto.enabled,
+        type: dto.type,
+        percent: dto.percent,
+        fixedKobo: dto.fixedKobo,
+      },
+    });
+
+    return {
+      updated: true,
+      serviceCharge: {
+        enabled: business.serviceChargeEnabled,
+        type: business.serviceChargeType,
+        percent: business.serviceChargePercent,
+        fixedKobo: business.serviceChargeFixedKobo,
+      },
+    };
   }
 
   async listPlans() {

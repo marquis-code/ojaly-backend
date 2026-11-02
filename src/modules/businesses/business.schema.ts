@@ -193,6 +193,18 @@ export class Business {
   marketplaceFeePercent: number;
 
   @Prop({ type: Boolean, default: false })
+  serviceChargeEnabled: boolean;
+
+  @Prop({ type: String, enum: ['percent', 'fixed'], default: 'percent' })
+  serviceChargeType: 'percent' | 'fixed';
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  serviceChargePercent: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  serviceChargeFixedKobo: number;
+
+  @Prop({ type: Boolean, default: false })
   customDomainVerified: boolean;
 
   @Prop({ type: String, default: null })

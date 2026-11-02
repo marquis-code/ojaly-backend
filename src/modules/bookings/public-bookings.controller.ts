@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { BookingsService } from './bookings.service';
-import { CancelBookingDto, RescheduleBookingDto } from './booking.dto';
+import { CancelBookingDto, LookupBookingDto, RescheduleBookingDto } from './booking.dto';
 
 @ApiTags('Public bookings')
 @Public()
@@ -19,6 +20,12 @@ export class PublicBookingsController {
       'Content-Disposition': `attachment; filename="${file.filename}"`,
       'Cache-Control': 'no-store',
     }).send(file.content);
+  }
+
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
+  @Post('lookup')
+  lookup(@Body() dto: LookupBookingDto) {
+    return this.bookings.lookupPublic(dto.customerPhone, dto.bookingNumber);
   }
 
   @Get(':token')

@@ -207,3 +207,13 @@ export class BookingMetricsQueryDto {
   @IsOptional()
   to?: string;
 }
+
+export class LookupBookingDto {
+  @ApiProperty()
+  @IsString()
+  customerPhone: string;
+
+  @ApiProperty()
+  @IsString()
+  bookingNumber: string;
+}

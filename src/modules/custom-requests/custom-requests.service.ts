@@ -197,6 +197,10 @@ export class CustomRequestsService {
         name: business.name, slug: business.slug, logoUrl: business.logoUrl || null,
         bannerUrl: business.bannerUrl || null, tagline: business.tagline || '', address: business.address || '',
         whatsappNumber: business.whatsappNumber || business.publicPhone || null,
+        serviceChargeEnabled: Boolean(business.serviceChargeEnabled),
+        serviceChargeType: business.serviceChargeType || 'percent',
+        serviceChargePercent: business.serviceChargePercent || 0,
+        serviceChargeFixedKobo: business.serviceChargeFixedKobo || 0,
       } : null,
     };
   }
