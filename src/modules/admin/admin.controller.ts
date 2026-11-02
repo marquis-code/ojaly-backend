@@ -101,7 +101,7 @@ export class AdminController {
     return this.admin.suspendBusiness(user.id, id, dto);
   }
 
-  @PlatformRoles('super_admin', 'support')
+  @PlatformRoles('super_admin')
   @Patch('businesses/:id/service-charge')
   updateServiceCharge(
     @CurrentUser() user: AuthenticatedUser,
