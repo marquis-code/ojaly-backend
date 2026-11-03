@@ -486,6 +486,7 @@ export interface BookingConfirmationEmailInput {
   timeLabel: string;
   durationMinutes: number;
   reference: string;
+  location?: string | null;
   manageUrl: string;
   calendarUrl: string;
   priceKobo: number;
@@ -518,6 +519,7 @@ export function bookingConfirmedEmail(input: BookingConfirmationEmailInput): { s
             <p style="margin:4px 0 0;color:${BRAND.muted};font-size:12px;">${escapeHtml(input.serviceName)} · ${input.durationMinutes} minutes · ${escapeHtml(input.providerName)}</p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid ${BRAND.border};">
               <tr><td style="padding:10px 0 7px;color:${BRAND.muted};font-size:12px;">Reference</td><td align="right" style="padding:10px 0 7px;color:${BRAND.ink};font-size:12px;font-weight:700;">${escapeHtml(input.reference)}</td></tr>
+              ${input.location ? `<tr><td style="padding:7px 0;color:${BRAND.muted};font-size:12px;">Location</td><td align="right" style="padding:7px 0;color:${BRAND.ink};font-size:12px;font-weight:700;">${escapeHtml(input.location)}</td></tr>` : ''}
               <tr><td style="padding:7px 0;color:${BRAND.muted};font-size:12px;">Price</td><td align="right" style="padding:7px 0;color:${BRAND.ink};font-size:12px;font-weight:700;">${formatNaira(input.priceKobo)}</td></tr>
               ${deposit}
             </table>
@@ -996,6 +998,7 @@ export interface BookingReminderEmailInput {
   dateLabel: string;
   timeLabel: string;
   reference: string;
+  location?: string | null;
   manageUrl: string;
   calendarUrl: string;
 }

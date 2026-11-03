@@ -44,6 +44,12 @@ export class CreateBookingDto {
   @MaxLength(2000)
   notes?: string;
 
+  @ApiPropertyOptional({ description: 'Customer-selected booking location, e.g. Block Boys Hostel' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  location?: string;
+
   @ApiPropertyOptional({ description: 'Campus marketplace attribution, e.g. UNILAG' })
   @IsString()
   @IsOptional()

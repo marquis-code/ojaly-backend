@@ -239,6 +239,14 @@ export class BookingSettingsDto {
   @IsOptional()
   closedDates?: string[];
 
+  @ApiPropertyOptional({ type: [String], description: 'Booking locations customers can choose from' })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  @IsOptional()
+  locations?: string[];
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
@@ -277,6 +285,30 @@ export class UpdateBusinessDto {
   @IsOptional()
   @MaxLength(600)
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  settlementBankName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  settlementBankCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  settlementAccountNumber?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  settlementAccountName?: string | null;
 
   @ApiPropertyOptional()
   @Transform(cleanUrl)

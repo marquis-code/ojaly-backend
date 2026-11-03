@@ -182,11 +182,15 @@ export class BookingsService {
     if (!phone) throw new BadRequestException('Enter a valid Nigerian phone number.');
     if (!this.normalDate(dto.startAt)) throw new BadRequestException('Choose a valid start time.');
     const startAt = new Date(dto.startAt);
+    const configuredLocations = business.bookingSettings?.locations || [];
+    const location = dto.location ? sanitizeText(dto.location, 100) : '';
+    if (location && configuredLocations.length && !configuredLocations.includes(location)) throw new BadRequestException('Choose one of the available booking locations.');
     const provider = await this.resolveProvider(businessId, service, dto.providerId);
     const addOns = this.selectedAddOns(service, dto.addOnNames || []);
     const packageRedemption = dto.packageCode ? await this.packages.validateRedemption(businessId, dto.packageCode, service._id.toString(), phone) : null;
     const marketplaceCampus = dto.marketplaceCampus ? { code: dto.marketplaceCampus.trim().toUpperCase() } : null;
     const effectiveSource = marketplaceCampus ? 'marketplace' : source;
+    if (!location && configuredLocations.length && ['storefront', 'marketplace'].includes(effectiveSource)) throw new BadRequestException('Choose a booking location.');
     const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
     const durationMinutes = overrides?.durationMinutes ?? service.durationMinutes + addonMinutes;
     const timezone = business.timezone || 'Africa/Lagos';
@@ -794,8 +798,9 @@ export class BookingsService {
     const provider = await this.providers.findById(booking.providerId).lean().exec();
     const providerPhone = provider?.phone || business.whatsappNumber || business.publicPhone;
     const bookingUrl = `${this.config.get('appUrl')}/booking/${booking.publicToken}`;
-    const providerText = `New booking with ${business.name}: ${booking.customerName} booked ${booking.serviceName} with ${booking.providerName} for ${when}. Ref ${booking.bookingNumber}. Total ${formatNaira(booking.priceKobo)}. View: ${bookingUrl}`;
-    const customerText = `Booking confirmed with ${business.name}: ${booking.serviceName} with ${booking.providerName} on ${when}. Ref ${booking.bookingNumber}. Manage: ${bookingUrl}`;
+    const where = booking.location ? ` at ${booking.location}` : '';
+    const providerText = `New booking with ${business.name}: ${booking.customerName} booked ${booking.serviceName} with ${booking.providerName} for ${when}${where}. Ref ${booking.bookingNumber}. Total ${formatNaira(booking.priceKobo)}. View: ${bookingUrl}`;
+    const customerText = `Booking confirmed with ${business.name}: ${booking.serviceName} with ${booking.providerName} on ${when}${where}. Ref ${booking.bookingNumber}. Manage: ${bookingUrl}`;
     const send = async (phone: string | null | undefined, text: string) => {
       if (!phone) return;
       const result = await this.whatsapp.send({ businessId: booking.businessId, phone, text }).catch(() => ({ sent: false }));
@@ -829,7 +834,7 @@ export class BookingsService {
         customerName: booking.customerName, businessName: business.name,
         businessLogo: business.logoUrl, businessTagline: business.tagline, businessSlug: business.slug,
         serviceName: booking.serviceName, providerName: booking.providerName,
-        dateLabel, timeLabel, durationMinutes: booking.durationMinutes, reference: booking.bookingNumber,
+        dateLabel, timeLabel, durationMinutes: booking.durationMinutes, reference: booking.bookingNumber, location: booking.location || null,
         manageUrl: `${this.config.get('appUrl')}/booking/${booking.publicToken}`,
         calendarUrl: `${this.config.get('apiUrl')}/public/bookings/${booking.publicToken}/calendar.ics`,
         priceKobo: booking.priceKobo, depositKobo: booking.depositKobo || 0,
@@ -880,6 +885,7 @@ export class BookingsService {
       status: booking.status,
       source: booking.source,
       notes: booking.notes,
+      location: booking.location || '',
       subtotalKobo: booking.subtotalKobo || booking.priceKobo,
       serviceChargeKobo: booking.serviceChargeKobo || 0,
       serviceChargePercent: booking.serviceChargePercent || 0,

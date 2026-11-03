@@ -104,6 +104,7 @@ export class BusinessesService {
       'name', 'category', 'businessMode', 'description', 'logoUrl', 'bannerUrl', 'heroVideoUrl', 'storyImageUrl', 'lookbookTitle', 'lookbook', 'tagline',
       'brandColor', 'templateKey', 'sections', 'socialLinks', 'publicPhone',
       'whatsappNumber', 'email', 'address', 'about', 'seoTitle', 'seoDescription',
+      'settlementBankName', 'settlementBankCode', 'settlementAccountNumber', 'settlementAccountName',
     ] as const;
     for (const key of allowed) {
       if (dto[key] !== undefined) update[key] = dto[key];

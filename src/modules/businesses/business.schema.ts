@@ -24,6 +24,7 @@ export interface BookingSettings {
   reminderHoursBefore: number;
   weeklyHours: WeeklyHours[];
   closedDates: string[];
+  locations: string[];
   policy: string;
 }
 
@@ -49,6 +50,7 @@ export const defaultBookingSettings = (): BookingSettings => ({
   reminderHoursBefore: 24,
   weeklyHours: defaultWeeklyHours,
   closedDates: [],
+  locations: [],
   policy: 'Please arrive 5 minutes early. Cancellations within 24 hours may lose the deposit.',
 });
 
@@ -145,6 +147,18 @@ export class Business {
 
   @Prop({ type: String, default: null })
   email: string | null;
+
+  @Prop({ type: String, default: null })
+  settlementBankName: string | null;
+
+  @Prop({ type: String, default: null })
+  settlementBankCode: string | null;
+
+  @Prop({ type: String, default: null })
+  settlementAccountNumber: string | null;
+
+  @Prop({ type: String, default: null })
+  settlementAccountName: string | null;
 
   @Prop({ type: String, default: '' })
   address: string;
