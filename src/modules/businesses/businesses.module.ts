@@ -8,6 +8,7 @@ import { User, UserSchema } from '../users/user.schema';
 import { Product, ProductSchema } from '../products/product.schema';
 import { Order, OrderSchema } from '../orders/order.schema';
 import { Service, ServiceSchema } from '../services/service.schema';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Service, ServiceSchema } from '../services/service.schema';
       { name: Order.name, schema: OrderSchema },
       { name: Service.name, schema: ServiceSchema },
     ]),
+    PaymentsModule,
   ],
   controllers: [BusinessesController],
   providers: [BusinessesService],

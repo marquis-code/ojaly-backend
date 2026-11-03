@@ -254,6 +254,17 @@ export class BookingSettingsDto {
   policy?: string;
 }
 
+export class AddSettlementAccountDto {
+  @ApiProperty({ description: 'Paystack bank code' })
+  @IsString()
+  @MaxLength(20)
+  bankCode: string;
+
+  @ApiProperty({ description: '10-digit NUBAN account number' })
+  @Matches(/^\d{10}$/)
+  accountNumber: string;
+}
+
 export class UpdateBusinessDto {
   @ApiPropertyOptional()
   @Transform(trim)

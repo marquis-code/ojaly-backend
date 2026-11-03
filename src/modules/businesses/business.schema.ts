@@ -5,6 +5,14 @@ import { schemaOptions } from '../../common/schemas/schema-options';
 export type BusinessDocument = HydratedDocument<Business>;
 export type BusinessMode = 'products' | 'services' | 'hybrid';
 
+export interface SettlementAccount {
+  id: string;
+  bankName: string;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+}
+
 export interface WeeklyHours {
   day: number;
   isOpen: boolean;
@@ -159,6 +167,12 @@ export class Business {
 
   @Prop({ type: String, default: null })
   settlementAccountName: string | null;
+
+  @Prop({ type: [Object], default: [] })
+  settlementAccounts: SettlementAccount[];
+
+  @Prop({ type: String, default: null })
+  settlementPrimaryAccountId: string | null;
 
   @Prop({ type: String, default: '' })
   address: string;

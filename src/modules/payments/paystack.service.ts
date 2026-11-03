@@ -122,6 +122,29 @@ export class PaystackService {
   }
 
 
+
+  async listBanks(): Promise<{ name: string; code: string }[]> {
+    if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
+    const response = await fetch('https://api.paystack.co/bank?currency=NGN', {
+      headers: { Authorization: `Bearer ${this.config.get('paystack.secretKey')}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { status?: boolean; message?: string; data?: { name?: string; code?: string }[] };
+    if (!response.ok || !data.status || !Array.isArray(data.data)) throw new BadGatewayException(data.message || 'Could not load banks from Paystack.');
+    return data.data.filter((bank) => bank.name && bank.code).map((bank) => ({ name: bank.name!, code: bank.code! })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async resolveAccount(accountNumber: string, bankCode: string): Promise<{ accountName: string; accountNumber: string }> {
+    if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
+    const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`, {
+      headers: { Authorization: `Bearer ${this.config.get('paystack.secretKey')}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { status?: boolean; message?: string; data?: { account_name?: string; account_number?: string } };
+    if (!response.ok || !data.status || !data.data?.account_name) throw new BadGatewayException(data.message || 'Paystack could not resolve that account.');
+    return { accountName: data.data.account_name, accountNumber: data.data.account_number || accountNumber };
+  }
+
   async createTransferRecipient(input: { name: string; accountNumber: string; bankCode: string }): Promise<{ recipientCode: string }> {
     if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
     const response = await fetch('https://api.paystack.co/transferrecipient', {

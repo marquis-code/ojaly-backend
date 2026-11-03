@@ -6,6 +6,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { BUSINESS_CATEGORIES } from './business.constants';
 import {
+  AddSettlementAccountDto,
   CustomDomainDto,
   InviteStaffDto,
   UpdateBusinessDto,
@@ -28,6 +29,53 @@ export class BusinessesController {
   @Get('current')
   current(@CurrentBusiness() businessId: string) {
     return this.businesses.current(businessId);
+  }
+
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Get('current/settlement-banks')
+  settlementBanks() {
+    return this.businesses.settlementBanks();
+  }
+
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Post('current/settlement-accounts/resolve')
+  resolveSettlementAccount(@Body() dto: AddSettlementAccountDto) {
+    return this.businesses.resolveSettlementAccount(dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Post('current/settlement-accounts')
+  addSettlementAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentBusiness() businessId: string,
+    @Body() dto: AddSettlementAccountDto,
+  ) {
+    return this.businesses.addSettlementAccount(user, businessId, dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Patch('current/settlement-accounts/:accountId/primary')
+  setPrimarySettlementAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentBusiness() businessId: string,
+    @Param('accountId') accountId: string,
+  ) {
+    return this.businesses.setPrimarySettlementAccount(user, businessId, accountId);
+  }
+
+  @ApiBearerAuth()
+  @Roles('owner')
+  @Delete('current/settlement-accounts/:accountId')
+  removeSettlementAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentBusiness() businessId: string,
+    @Param('accountId') accountId: string,
+  ) {
+    return this.businesses.removeSettlementAccount(user, businessId, accountId);
   }
 
   @ApiBearerAuth()

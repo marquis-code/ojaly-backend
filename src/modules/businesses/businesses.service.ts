@@ -23,6 +23,7 @@ import { STAFF_DEFAULT_PERMISSIONS } from '../../common/constants/permissions';
 import { randomToken, sha256 } from '../../common/utils/tokens';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
 import { staffInviteEmail } from '../mail/email-templates';
+import { PaystackService } from '../payments/paystack.service';
 import {
   CustomDomainDto,
   InviteStaffDto,
@@ -44,6 +45,7 @@ export class BusinessesService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly paystack: PaystackService,
   ) {}
 
   async findById(businessId: string): Promise<BusinessDocument> {
@@ -95,6 +97,59 @@ export class BusinessesService {
         published: business.storefrontPublished,
       },
     };
+  }
+
+  async settlementBanks() {
+    return this.paystack.listBanks();
+  }
+
+  async resolveSettlementAccount(dto: { bankCode: string; accountNumber: string }) {
+    const resolved = await this.paystack.resolveAccount(dto.accountNumber, dto.bankCode);
+    return resolved;
+  }
+
+  async addSettlementAccount(user: AuthenticatedUser, businessId: string, dto: { bankCode: string; accountNumber: string }) {
+    const business = await this.findById(businessId);
+    if (business.settlementAccounts.length >= 5) throw new BadRequestException('You can save up to 5 settlement accounts.');
+    if (business.settlementAccounts.some((account) => account.bankCode === dto.bankCode && account.accountNumber === dto.accountNumber)) {
+      throw new ConflictException('That settlement account is already saved.');
+    }
+    const banks = await this.paystack.listBanks();
+    const bank = banks.find((item) => item.code === dto.bankCode);
+    if (!bank) throw new BadRequestException('Choose a valid bank.');
+    const resolved = await this.paystack.resolveAccount(dto.accountNumber, dto.bankCode);
+    const account = {
+      id: randomToken(10), bankName: bank.name, bankCode: dto.bankCode,
+      accountNumber: dto.accountNumber, accountName: resolved.accountName,
+    };
+    business.settlementAccounts.push(account);
+    if (!business.settlementPrimaryAccountId) business.settlementPrimaryAccountId = account.id;
+    await business.save();
+    await this.audit.record({
+      businessId, actorId: user.id, actorType: 'owner', action: 'business.settlement_account_added',
+      entity: 'business', entityId: businessId, metadata: { bankName: bank.name, accountLast4: dto.accountNumber.slice(-4) },
+    });
+    return { accounts: business.settlementAccounts, primaryAccountId: business.settlementPrimaryAccountId };
+  }
+
+  async setPrimarySettlementAccount(user: AuthenticatedUser, businessId: string, accountId: string) {
+    const business = await this.findById(businessId);
+    if (!business.settlementAccounts.some((account) => account.id === accountId)) throw new NotFoundException('Settlement account not found.');
+    business.settlementPrimaryAccountId = accountId;
+    await business.save();
+    await this.audit.record({ businessId, actorId: user.id, actorType: 'owner', action: 'business.settlement_account_primary', entity: 'business', entityId: businessId, metadata: { accountId } });
+    return { accounts: business.settlementAccounts, primaryAccountId: business.settlementPrimaryAccountId };
+  }
+
+  async removeSettlementAccount(user: AuthenticatedUser, businessId: string, accountId: string) {
+    const business = await this.findById(businessId);
+    const account = business.settlementAccounts.find((item) => item.id === accountId);
+    if (!account) throw new NotFoundException('Settlement account not found.');
+    business.settlementAccounts = business.settlementAccounts.filter((item) => item.id !== accountId);
+    if (business.settlementPrimaryAccountId === accountId) business.settlementPrimaryAccountId = business.settlementAccounts[0]?.id || null;
+    await business.save();
+    await this.audit.record({ businessId, actorId: user.id, actorType: 'owner', action: 'business.settlement_account_removed', entity: 'business', entityId: businessId, metadata: { bankName: account.bankName, accountLast4: account.accountNumber.slice(-4) } });
+    return { accounts: business.settlementAccounts, primaryAccountId: business.settlementPrimaryAccountId };
   }
 
   async update(user: AuthenticatedUser, businessId: string, dto: UpdateBusinessDto) {
