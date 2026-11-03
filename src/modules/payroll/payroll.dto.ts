@@ -1,9 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 
 export class GeneratePayrollDto {
-  @ApiProperty({ example: '2026-11' })
-  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+  @ApiProperty({ enum: ['daily', 'weekly', 'monthly', 'per_service'] })
+  @IsIn(['daily', 'weekly', 'monthly', 'per_service'])
+  frequency: 'daily' | 'weekly' | 'monthly' | 'per_service';
+
+  @ApiProperty({ example: '2026-11-02' })
+  @IsString()
   period: string;
 }
 

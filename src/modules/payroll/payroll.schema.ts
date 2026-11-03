@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { schemaOptions } from '../../common/schemas/schema-options';
 
+export type PayrollFrequency = 'daily' | 'weekly' | 'monthly' | 'per_service';
 export type PayrollRunStatus = 'draft' | 'approved' | 'processing' | 'paid' | 'partially_paid' | 'cancelled';
 export type PayrollItemStatus = 'pending' | 'processing' | 'paid' | 'failed';
 
@@ -9,6 +10,10 @@ export interface PayrollItem {
   providerId: string;
   providerName: string;
   monthlySalaryKobo: number;
+  payFrequency: PayrollFrequency;
+  payRateKobo: number;
+  units: number;
+  grossKobo: number;
   completedJobs: number;
   assignedJobs: number;
   completionRate: number;
@@ -33,6 +38,15 @@ export class PayrollRun {
 
   @Prop({ type: String, required: true })
   period: string;
+
+  @Prop({ type: String, enum: ['daily', 'weekly', 'monthly', 'per_service'], default: 'monthly', index: true })
+  frequency: PayrollFrequency;
+
+  @Prop({ type: Date, required: true })
+  periodStart: Date;
+
+  @Prop({ type: Date, required: true })
+  periodEnd: Date;
 
   @Prop({ type: String, enum: ['draft', 'approved', 'processing', 'paid', 'partially_paid', 'cancelled'], default: 'draft', index: true })
   status: PayrollRunStatus;

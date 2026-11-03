@@ -61,7 +61,9 @@ export class ProvidersService {
       isBookable: dto.isBookable ?? true,
       sortOrder: dto.sortOrder ?? 0,
       salaryEnabled: dto.salaryEnabled ?? false,
-      monthlySalaryKobo: dto.monthlySalaryKobo ?? 0,
+      payFrequency: dto.payFrequency || 'monthly',
+      payRateKobo: dto.payRateKobo ?? dto.monthlySalaryKobo ?? 0,
+      monthlySalaryKobo: (dto.payFrequency || 'monthly') === 'monthly' ? (dto.payRateKobo ?? dto.monthlySalaryKobo ?? 0) : 0,
       salaryStartDate: dto.salaryStartDate || null,
       bankName: dto.bankName || null,
       bankCode: dto.bankCode || null,
@@ -87,6 +89,8 @@ export class ProvidersService {
     if (dto.isActive !== undefined) provider.isActive = dto.isActive;
     if (dto.sortOrder !== undefined) provider.sortOrder = dto.sortOrder;
     if (dto.salaryEnabled !== undefined) provider.salaryEnabled = dto.salaryEnabled;
+    if (dto.payFrequency !== undefined) provider.payFrequency = dto.payFrequency;
+    if (dto.payRateKobo !== undefined) provider.payRateKobo = dto.payRateKobo;
     if (dto.monthlySalaryKobo !== undefined) provider.monthlySalaryKobo = dto.monthlySalaryKobo;
     if (dto.salaryStartDate !== undefined) provider.salaryStartDate = dto.salaryStartDate || null;
     if (dto.bankName !== undefined) provider.bankName = dto.bankName || null;
@@ -171,7 +175,9 @@ export class ProvidersService {
       isActive: provider.isActive,
       sortOrder: provider.sortOrder,
       salaryEnabled: Boolean(provider.salaryEnabled),
-      monthlySalaryKobo: provider.monthlySalaryKobo || 0,
+      payFrequency: provider.payFrequency || 'monthly',
+      payRateKobo: provider.payRateKobo || provider.monthlySalaryKobo || 0,
+      monthlySalaryKobo: provider.payFrequency === 'monthly' ? (provider.payRateKobo || provider.monthlySalaryKobo || 0) : 0,
       salaryStartDate: provider.salaryStartDate || null,
       bankName: provider.bankName || null,
       accountName: provider.accountName || null,

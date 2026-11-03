@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsHexColor, IsInt, IsOptional,
+  ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsHexColor, IsIn, IsInt, IsOptional,
   IsString, Matches, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 
@@ -135,6 +135,17 @@ export class CreateProviderDto {
   @IsBoolean()
   @IsOptional()
   salaryEnabled?: boolean;
+
+  @ApiPropertyOptional({ enum: ['daily', 'weekly', 'monthly', 'per_service'] })
+  @IsIn(['daily', 'weekly', 'monthly', 'per_service'])
+  @IsOptional()
+  payFrequency?: 'daily' | 'weekly' | 'monthly' | 'per_service';
+
+  @ApiPropertyOptional()
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  payRateKobo?: number;
 
   @ApiPropertyOptional()
   @IsInt()

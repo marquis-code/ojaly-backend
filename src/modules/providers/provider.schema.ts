@@ -96,6 +96,12 @@ export class Provider {
   @Prop({ type: Boolean, default: false })
   salaryEnabled: boolean;
 
+  @Prop({ type: String, enum: ['daily', 'weekly', 'monthly', 'per_service'], default: 'monthly' })
+  payFrequency: 'daily' | 'weekly' | 'monthly' | 'per_service';
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  payRateKobo: number;
+
   @Prop({ type: Number, default: 0, min: 0 })
   monthlySalaryKobo: number;
 

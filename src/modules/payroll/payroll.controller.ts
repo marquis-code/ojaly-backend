@@ -21,7 +21,7 @@ export class PayrollController {
   @Post('runs')
   @Permissions(PERMISSIONS.PAYROLL_WRITE)
   generate(@CurrentBusiness() businessId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: GeneratePayrollDto) {
-    return this.payroll.generate(businessId, dto.period, user.id);
+    return this.payroll.generate(businessId, dto.frequency, dto.period, user.id);
   }
 
   @Get('runs/:id')
