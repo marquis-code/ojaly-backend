@@ -121,6 +121,45 @@ export class PaystackService {
     return data;
   }
 
+
+  async createTransferRecipient(input: { name: string; accountNumber: string; bankCode: string }): Promise<{ recipientCode: string }> {
+    if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
+    const response = await fetch('https://api.paystack.co/transferrecipient', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.config.get('paystack.secretKey')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'nuban', name: input.name, account_number: input.accountNumber, bank_code: input.bankCode, currency: 'NGN' }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { status?: boolean; message?: string; data?: { recipient_code?: string } };
+    if (!response.ok || !data.status || !data.data?.recipient_code) throw new BadGatewayException(data.message || 'Could not create a Paystack transfer recipient.');
+    return { recipientCode: data.data.recipient_code };
+  }
+
+  async initiateTransfer(input: { amountKobo: number; recipient: string; reason: string; reference: string }): Promise<{ status: string; transferCode: string | null; reference: string }> {
+    if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
+    if (input.amountKobo < 100) throw new BadGatewayException('Paystack transfers require at least ₦1.');
+    const response = await fetch('https://api.paystack.co/transfer', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.config.get('paystack.secretKey')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'balance', amount: input.amountKobo, recipient: input.recipient, reason: input.reason, reference: input.reference, currency: 'NGN' }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { status?: boolean; message?: string; data?: { status?: string; transfer_code?: string; reference?: string } };
+    if (!response.ok || !data.status || !data.data) throw new BadGatewayException(data.message || 'Paystack could not initiate this salary transfer.');
+    return { status: data.data.status || 'pending', transferCode: data.data.transfer_code || null, reference: data.data.reference || input.reference };
+  }
+
+  async verifyTransfer(reference: string): Promise<{ status: string; transferCode: string | null } | null> {
+    if (!this.isConfigured) throw new ServiceUnavailableException('Paystack is not configured.');
+    const response = await fetch(`https://api.paystack.co/transfer/verify/${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${this.config.get('paystack.secretKey')}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { status?: boolean; data?: { status?: string; transfer_code?: string } };
+    if (!response.ok || !data.status || !data.data) return null;
+    return { status: data.data.status || 'pending', transferCode: data.data.transfer_code || null };
+  }
+
   get webhookSecret(): string | null {
     return this.config.get('paystack.webhookSecret') || this.config.get('paystack.secretKey') || null;
   }

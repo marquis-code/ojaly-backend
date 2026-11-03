@@ -130,6 +130,47 @@ export class CreateProviderDto {
   @Max(100)
   @IsOptional()
   sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  salaryEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  monthlySalaryKobo?: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(10)
+  salaryStartDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  bankName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  bankCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  accountNumber?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  accountName?: string | null;
 }
 
 export class UpdateProviderDto extends PartialType(CreateProviderDto) {

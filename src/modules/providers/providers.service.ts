@@ -26,7 +26,17 @@ export class ProvidersService {
       { $group: { _id: '$providerId', count: { $sum: 1 } } },
     ]);
     const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
-    return providers.map((p) => ({ ...this.view(p), upcomingBookings: countMap.get(String(p._id)) || 0 }));
+    const [completed, assigned] = await Promise.all([
+      this.bookings.aggregate([{ $match: { businessId, status: 'completed' } }, { $group: { _id: '$providerId', count: { $sum: 1 } } }]),
+      this.bookings.aggregate([{ $match: { businessId, status: { $in: ['pending', 'confirmed', 'completed'] } } }, { $group: { _id: '$providerId', count: { $sum: 1 } } }]),
+    ]);
+    const completedMap = new Map(completed.map((c) => [String(c._id), c.count]));
+    const assignedMap = new Map(assigned.map((c) => [String(c._id), c.count]));
+    return providers.map((p) => {
+      const done = completedMap.get(String(p._id)) || 0;
+      const total = assignedMap.get(String(p._id)) || 0;
+      return { ...this.view(p), upcomingBookings: countMap.get(String(p._id)) || 0, completedBookings: done, assignedBookings: total, completionRate: total ? Math.round((done / total) * 100) : 0 };
+    });
   }
 
   async publicList(businessId: string) {
@@ -50,6 +60,13 @@ export class ProvidersService {
       timeOff: this.cleanTimeOff(dto.timeOff),
       isBookable: dto.isBookable ?? true,
       sortOrder: dto.sortOrder ?? 0,
+      salaryEnabled: dto.salaryEnabled ?? false,
+      monthlySalaryKobo: dto.monthlySalaryKobo ?? 0,
+      salaryStartDate: dto.salaryStartDate || null,
+      bankName: dto.bankName || null,
+      bankCode: dto.bankCode || null,
+      accountNumber: dto.accountNumber || null,
+      accountName: dto.accountName || null,
     });
     return this.view(provider);
   }
@@ -69,6 +86,14 @@ export class ProvidersService {
     if (dto.isBookable !== undefined) provider.isBookable = dto.isBookable;
     if (dto.isActive !== undefined) provider.isActive = dto.isActive;
     if (dto.sortOrder !== undefined) provider.sortOrder = dto.sortOrder;
+    if (dto.salaryEnabled !== undefined) provider.salaryEnabled = dto.salaryEnabled;
+    if (dto.monthlySalaryKobo !== undefined) provider.monthlySalaryKobo = dto.monthlySalaryKobo;
+    if (dto.salaryStartDate !== undefined) provider.salaryStartDate = dto.salaryStartDate || null;
+    if (dto.bankName !== undefined) provider.bankName = dto.bankName || null;
+    if (dto.bankCode !== undefined) provider.bankCode = dto.bankCode || null;
+    if (dto.accountNumber !== undefined) provider.accountNumber = dto.accountNumber || null;
+    if (dto.accountName !== undefined) provider.accountName = dto.accountName || null;
+    if (dto.bankCode !== undefined || dto.accountNumber !== undefined) provider.paystackRecipientCode = null;
     await provider.save();
     return this.view(provider);
   }
@@ -145,6 +170,13 @@ export class ProvidersService {
       isBookable: provider.isBookable,
       isActive: provider.isActive,
       sortOrder: provider.sortOrder,
+      salaryEnabled: Boolean(provider.salaryEnabled),
+      monthlySalaryKobo: provider.monthlySalaryKobo || 0,
+      salaryStartDate: provider.salaryStartDate || null,
+      bankName: provider.bankName || null,
+      accountName: provider.accountName || null,
+      bankAccountLast4: provider.accountNumber ? provider.accountNumber.slice(-4) : null,
+      hasBankDetails: Boolean(provider.bankCode && provider.accountNumber),
     };
   }
 }

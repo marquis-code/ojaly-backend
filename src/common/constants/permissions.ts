@@ -24,6 +24,8 @@ export const PERMISSIONS = {
   STAFF_MANAGE: 'staff:manage',
   PAYMENTS_MANAGE: 'payments:manage',
   WHATSAPP_MANAGE: 'whatsapp:manage',
+  PAYROLL_READ: 'payroll:read',
+  PAYROLL_WRITE: 'payroll:write',
 } as const;
 
 export const STAFF_DEFAULT_PERMISSIONS: string[] = [

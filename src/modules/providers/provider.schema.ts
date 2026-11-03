@@ -92,6 +92,31 @@ export class Provider {
 
   @Prop({ type: Number, default: 0 })
   sortOrder: number;
+
+  @Prop({ type: Boolean, default: false })
+  salaryEnabled: boolean;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  monthlySalaryKobo: number;
+
+  @Prop({ type: String, default: null })
+  salaryStartDate: string | null;
+
+  @Prop({ type: String, default: null })
+  bankName: string | null;
+
+  @Prop({ type: String, default: null })
+  bankCode: string | null;
+
+  @Prop({ type: String, default: null })
+  accountNumber: string | null;
+
+  @Prop({ type: String, default: null })
+  accountName: string | null;
+
+  @Prop({ type: String, default: null })
+  paystackRecipientCode: string | null;
+
 }
 
 export const ProviderSchema = SchemaFactory.createForClass(Provider);

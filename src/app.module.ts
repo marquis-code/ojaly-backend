@@ -30,6 +30,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { AiModule } from './modules/ai/ai.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { CustomRequestsModule } from './modules/custom-requests/custom-requests.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { StockModule } from './modules/stock/stock.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -100,6 +101,7 @@ import { JwtModule } from '@nestjs/jwt';
     AiModule,
     MarketplaceModule,
     CustomRequestsModule,
+    PayrollModule,
     StockModule,
     CustomersModule,
     DebtsModule,
