@@ -104,6 +104,9 @@ export class Sale {
   @Prop({ type: String, default: null })
   receiptId: string | null;
 
+  @Prop({ type: String, default: null, unique: true, sparse: true, index: true })
+  chatToken: string | null;
+
   @Prop({ type: String, default: '' })
   notes: string;
 

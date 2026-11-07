@@ -101,7 +101,15 @@ export class ReceiptsService {
     const receipt = await this.receipts.findOne({ publicToken: token }).lean().exec();
     if (!receipt) throw new NotFoundException('Receipt not found.');
     const business = await this.businesses.findById(receipt.businessId).select('name slug logoUrl brandColor email publicPhone whatsappNumber address').lean().exec();
-    return { receipt, business };
+    let chatToken: string | null = null;
+    if (receipt.saleId) {
+      const sale = await this.sales.findOne({ _id: receipt.saleId, businessId: receipt.businessId }).exec();
+      if (sale) {
+        if (!sale.chatToken) { sale.chatToken = randomToken(24); await sale.save(); }
+        chatToken = sale.chatToken;
+      }
+    }
+    return { receipt, business, chatToken };
   }
 
   async receiptPdf(token: string): Promise<Buffer> {

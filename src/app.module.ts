@@ -31,6 +31,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { CustomRequestsModule } from './modules/custom-requests/custom-requests.module';
 import { BookingMessagesModule } from './modules/booking-messages/booking-messages.module';
+import { SaleMessagesModule } from './modules/sale-messages/sale-messages.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { SupportModule } from './modules/support/support.module';
@@ -105,6 +106,7 @@ import { JwtModule } from '@nestjs/jwt';
     MarketplaceModule,
     CustomRequestsModule,
     BookingMessagesModule,
+    SaleMessagesModule,
     PayrollModule,
     PromotionsModule,
     SupportModule,

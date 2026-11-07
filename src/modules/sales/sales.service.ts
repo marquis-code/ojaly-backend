@@ -16,6 +16,7 @@ import { nextSequence } from '../../common/utils/order-number';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
 import { resolveDateRange } from '../../common/utils/dates';
 import { sanitizeText } from '../../common/utils/sanitize';
+import { randomToken } from '../../common/utils/tokens';
 import { CreateSaleDto, SaleQueryDto } from './dto/sale.dto';
 import type { PaymentStatus } from './sale.schema';
 
@@ -111,6 +112,7 @@ export class SalesService {
           [{
             businessId,
             saleNumber,
+            chatToken: randomToken(24),
             customerId: customer?._id.toString() ?? null,
             customerName: customer?.name || sanitizeText(dto.customerName, 100) || 'Walk-in customer',
             customerPhone: customer?.phone || dto.customerPhone || '',
@@ -231,6 +233,7 @@ export class SalesService {
       [{
         businessId: order.businessId,
         saleNumber,
+        chatToken: randomToken(24),
         orderId: order._id.toString(),
         customerId: order.customerId,
         customerName: order.customerName,
