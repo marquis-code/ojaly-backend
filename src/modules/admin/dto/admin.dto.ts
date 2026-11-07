@@ -501,6 +501,8 @@ export class UpdatePlatformCampaignDto {
   @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(100) label?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(200) bannerText?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(40) badgeText?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() startsAt?: string | null;
+  @ApiPropertyOptional() @IsString() @IsOptional() endsAt?: string | null;
 }
 
 export class UpdateNewCustomerPromotionDto {
@@ -521,4 +523,14 @@ export class UpdateNewCustomerPromotionDto {
   @Min(0)
   @IsOptional()
   maxDiscountKobo?: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  startsAt?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  endsAt?: string | null;
 }

@@ -464,7 +464,7 @@ export class AdminService {
   async fraudEvents(limit: number) { return this.risk.list(undefined, limit); }
 
   async getPlatformCampaign() { return this.promotions.getPlatformCampaign(); }
-  async updatePlatformCampaign(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number; label?: string; bannerText?: string; badgeText?: string }) {
+  async updatePlatformCampaign(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number; label?: string; bannerText?: string; badgeText?: string; startsAt?: string | null; endsAt?: string | null }) {
     const promotion = await this.promotions.updatePlatformCampaign(dto);
     await this.audit.record({ actorId, actorType: 'platform_admin', action: 'admin.platform_campaign_updated', entity: 'promotion', entityId: String(promotion?._id || 'platform_campaign'), metadata: { enabled: dto.enabled, percentOff: dto.percentOff } });
     return promotion;
@@ -474,7 +474,7 @@ export class AdminService {
     return this.promotions.getNewCustomer();
   }
 
-  async updateNewCustomerPromotion(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number }) {
+  async updateNewCustomerPromotion(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number; startsAt?: string | null; endsAt?: string | null }) {
     const promotion = await this.promotions.updateNewCustomer(dto);
     await this.audit.record({
       actorId, actorType: 'platform_admin', action: 'admin.new_customer_promotion_updated',

@@ -29,6 +29,12 @@ export class Promotion {
 
   @Prop({ type: String, default: '10% OFF' })
   badgeText: string;
+
+  @Prop({ type: Date, default: null })
+  startsAt: Date | null;
+
+  @Prop({ type: Date, default: null })
+  endsAt: Date | null;
 }
 
 export const PromotionSchema = SchemaFactory.createForClass(Promotion);
