@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkipTenant } from '../../common/decorators/skip-tenant.decorator';
 import { CurrentUser, PlatformRoles } from '../../common/decorators/auth.decorators';
 import type { AuthenticatedUser } from '../../common/types/auth.types';
 import { SupportService } from './support.service';
@@ -41,6 +42,7 @@ export class SupportController {
 
 @ApiTags('Admin support')
 @ApiBearerAuth()
+@SkipTenant()
 @Controller('admin/support')
 export class SupportAdminController {
   constructor(private readonly support: SupportService) {}
