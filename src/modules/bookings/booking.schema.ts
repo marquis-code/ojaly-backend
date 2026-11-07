@@ -154,6 +154,12 @@ export class Booking {
   location: string;
 
   @Prop({ type: Number, default: 0 })
+  riskScore: number;
+
+  @Prop({ type: [String], default: [] })
+  riskFlags: string[];
+
+  @Prop({ type: Number, default: 0 })
   subtotalKobo: number;
 
   @Prop({ type: Number, default: 0 })

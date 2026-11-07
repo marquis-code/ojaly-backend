@@ -12,6 +12,7 @@ import { WhatsappMessage, WhatsappMessageSchema } from './whatsapp-message.schem
 import { Product, ProductSchema } from '../products/product.schema';
 import { Business, BusinessSchema } from '../businesses/business.schema';
 import { Membership, MembershipSchema } from '../memberships/membership.schema';
+import { Booking, BookingSchema } from '../bookings/booking.schema';
 import { SalesModule } from '../sales/sales.module';
 import { DebtsModule } from '../debts/debts.module';
 import { ProductsModule } from '../products/products.module';
@@ -30,6 +31,7 @@ import { ExpensesModule } from '../expenses/expenses.module';
       { name: Product.name, schema: ProductSchema },
       { name: Business.name, schema: BusinessSchema },
       { name: Membership.name, schema: MembershipSchema },
+      { name: Booking.name, schema: BookingSchema },
     ]),
     SalesModule,
     DebtsModule,

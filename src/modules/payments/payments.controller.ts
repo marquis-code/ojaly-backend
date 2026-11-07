@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
@@ -132,6 +133,7 @@ export class PaymentsController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get('payments/verify/:reference')
   verify(@Param('reference') reference: string) {
     return this.payments.verifyAndSettle(reference);

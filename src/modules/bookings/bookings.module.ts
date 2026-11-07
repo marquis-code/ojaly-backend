@@ -16,6 +16,7 @@ import { ServicesModule } from '../services/services.module';
 import { WaitlistModule } from '../waitlist/waitlist.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { PromotionsModule } from '../promotions/promotions.module';
+import { RiskModule } from '../risk/risk.module';
 import { PackagesModule } from '../packages/packages.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { Booking, BookingSchema } from './booking.schema';
@@ -41,6 +42,7 @@ import { AvailabilityService } from './availability.service';
     WaitlistModule,
     PaymentsModule,
     PromotionsModule,
+    RiskModule,
     PackagesModule,
     CalendarModule,
     DebtsModule,

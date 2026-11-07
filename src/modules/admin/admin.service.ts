@@ -10,6 +10,7 @@ import { Plan, PlanDocument } from '../plans/plan.schema';
 import { Subscription, SubscriptionDocument } from '../plans/subscription.schema';
 import { Coupon, CouponDocument } from '../plans/coupon.schema';
 import { PromotionsService } from '../promotions/promotions.service';
+import { RiskService } from '../risk/risk.service';
 import { Payment, PaymentDocument } from '../payments/payment.schema';
 import { WebhookEvent, WebhookEventDocument } from '../payments/webhook-event.schema';
 import { WhatsappMessage, WhatsappMessageDocument } from '../whatsapp/whatsapp-message.schema';
@@ -52,6 +53,7 @@ export class AdminService {
     @InjectModel(Subscription.name) private readonly subscriptions: Model<SubscriptionDocument>,
     @InjectModel(Coupon.name) private readonly coupons: Model<CouponDocument>,
     private readonly promotions: PromotionsService,
+    private readonly risk: RiskService,
     @InjectModel(Payment.name) private readonly payments: Model<PaymentDocument>,
     @InjectModel(WebhookEvent.name) private readonly webhooks: Model<WebhookEventDocument>,
     @InjectModel(WhatsappMessage.name) private readonly whatsappMessages: Model<WhatsappMessageDocument>,
@@ -457,6 +459,9 @@ export class AdminService {
       },
     };
   }
+
+  async fraudStats() { return this.risk.stats(); }
+  async fraudEvents(limit: number) { return this.risk.list(undefined, limit); }
 
   async getNewCustomerPromotion() {
     return this.promotions.getNewCustomer();

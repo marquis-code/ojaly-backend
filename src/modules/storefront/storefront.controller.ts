@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentBusiness, Permissions } from '../../common/decorators/auth.decorators';
 import { PERMISSIONS } from '../../common/constants/permissions';
@@ -35,6 +36,7 @@ export class StorefrontController {
     return this.storefront.product(slug, id);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post(':slug/orders')
   order(@Param('slug') slug: string, @Body() dto: StorefrontOrderDto) {
     return this.storefront.placeOrder(slug, dto);
@@ -70,11 +72,13 @@ export class StorefrontController {
     return this.storefront.joinWaitlist(slug, dto);
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post(':slug/bookings')
   booking(@Param('slug') slug: string, @Body() dto: CreatePublicBookingDto) {
     return this.storefront.placeBooking(slug, dto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post(':slug/contact')
   contact(@Param('slug') slug: string, @Body() dto: StorefrontContactDto) {
     return this.storefront.contact(slug, dto);

@@ -123,6 +123,12 @@ export class AdminController {
     return this.admin.updateProviderFee(user.id, id, dto);
   }
 
+  @Get('fraud/stats')
+  fraudStats() { return this.admin.fraudStats(); }
+
+  @Get('fraud/events')
+  fraudEvents(@Query('limit') limit?: string) { return this.admin.fraudEvents(Number(limit) || 100); }
+
   @Get('promotions/new-customer')
   newCustomerPromotion() {
     return this.admin.getNewCustomerPromotion();

@@ -12,6 +12,7 @@ import { Service, ServiceDocument } from '../services/service.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import { RiskService } from '../risk/risk.service';
 import { bookingConfirmedEmail, bookingReviewEmail } from '../mail/email-templates';
 import { SmsService } from '../sms/sms.service';
 import { PackagesService } from '../packages/packages.service';
@@ -58,6 +59,7 @@ export class BookingsService {
     private readonly sms: SmsService,
     private readonly whatsapp: WhatsappClientService,
     private readonly promotions: PromotionsService,
+    private readonly risk: RiskService,
     private readonly packages: PackagesService,
     private readonly calendarSync: CalendarService,
     private readonly config: ConfigService,
@@ -187,6 +189,7 @@ export class BookingsService {
     const configuredLocations = business.bookingSettings?.locations || [];
     const location = dto.location ? sanitizeText(dto.location, 100) : '';
     if (location && configuredLocations.length && !configuredLocations.includes(location)) throw new BadRequestException('Choose one of the available booking locations.');
+    const risk = await this.risk.assessBooking({ businessId, phone, email: dto.customerEmail || null, amountKobo: service.priceKobo, startAt, serviceId: service._id.toString(), reference: `${phone}:${startAt.toISOString()}` });
     const provider = await this.resolveProvider(businessId, service, dto.providerId);
     const addOns = this.selectedAddOns(service, dto.addOnNames || []);
     const packageRedemption = dto.packageCode ? await this.packages.validateRedemption(businessId, dto.packageCode, service._id.toString(), phone) : null;

@@ -7,6 +7,7 @@ import { WhatsappOtp, WhatsappOtpDocument } from './whatsapp-otp.schema';
 import { Product, ProductDocument } from '../products/product.schema';
 import { Business, BusinessDocument } from '../businesses/business.schema';
 import { Membership, MembershipDocument } from '../memberships/membership.schema';
+import { Booking, BookingDocument } from '../bookings/booking.schema';
 import { SalesService } from '../sales/sales.service';
 import { DebtsService } from '../debts/debts.service';
 import { ProductsService } from '../products/products.service';
@@ -59,6 +60,8 @@ SUMMARY — today's numbers
 STOCK — low stock and stock value
 OWES — customers who owe you
 UNDO — reverse your last sale (15 min)
+BOOKINGS — today's appointments
+NEXT — your next appointment
 HELP — this list
 STOP — turn off automatic alerts
 
@@ -74,6 +77,7 @@ export class BotService {
     @InjectModel(Product.name) private readonly products: Model<ProductDocument>,
     @InjectModel(Business.name) private readonly businesses: Model<BusinessDocument>,
     @InjectModel(Membership.name) private readonly memberships: Model<MembershipDocument>,
+    @InjectModel(Booking.name) private readonly bookings: Model<BookingDocument>,
     private readonly sales: SalesService,
     private readonly debts: DebtsService,
     private readonly productsService: ProductsService,
@@ -133,6 +137,14 @@ export class BotService {
       await this.reply(contact, HELP_TEXT);
       return;
     }
+    if (command === 'bookings' || command === 'today' || command === 'appointments') {
+      await this.bookingsCommand(contact, false);
+      return;
+    }
+    if (command === 'next') {
+      await this.bookingsCommand(contact, true);
+      return;
+    }
     if (command === 'summary') {
       const payload = await this.summaries.build(contact.businessId, 'daily');
       await this.reply(contact, payload.text);
@@ -167,6 +179,26 @@ export class BotService {
     }
 
     await this.parseSaleIntent(contact, business.name, text, input.audioTranscript);
+  }
+
+  private async bookingsCommand(contact: WhatsappContactDocument, nextOnly: boolean) {
+    const timeZone = 'Africa/Lagos';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const start = new Date(`${today}T00:00:00+01:00`);
+    const end = new Date(start.getTime() + 86400000);
+    const query = nextOnly
+      ? { businessId: contact.businessId, status: { $in: ['pending', 'confirmed'] }, startAt: { $gte: new Date() } }
+      : { businessId: contact.businessId, status: { $in: ['pending', 'confirmed'] }, startAt: { $gte: start, $lt: end } };
+    const bookings = await this.bookings.find(query).sort({ startAt: 1 }).limit(nextOnly ? 1 : 12).lean().exec();
+    if (!bookings.length) {
+      await this.reply(contact, nextOnly ? 'No upcoming appointment is on the calendar.' : 'No confirmed or pending appointments today.');
+      return;
+    }
+    const lines = bookings.map((booking) => {
+      const when = new Intl.DateTimeFormat('en-NG', { timeZone, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(booking.startAt);
+      return `• *${when}* — ${booking.customerName} · ${booking.serviceName}${booking.location ? ` · ${booking.location}` : ''}\n  Ref ${booking.bookingNumber} · ${booking.status}`;
+    });
+    await this.reply(contact, `${nextOnly ? '*Next appointment*' : '*Today’s appointments*'}\n\n${lines.join('\n\n')}`);
   }
 
   private async linkPhone(phone: string, code: string, displayName?: string): Promise<void> {
