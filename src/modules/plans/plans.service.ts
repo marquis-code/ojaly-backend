@@ -46,7 +46,7 @@ export const DEFAULT_PLANS: Array<Partial<Plan> & { key: string; name: string }>
     priceYearlyKobo: 2400000,
     isDefault: false,
     isTrialPlan: true,
-    trialDays: 14,
+    trialDays: 30,
     sortOrder: 2,
     entitlements: {
       ...FREE_ENTITLEMENTS,
@@ -127,6 +127,18 @@ export class PlansService implements OnApplicationBootstrap {
         ).exec();
       }
     }
+    // Every business gets a full 30 days. Existing trial plans created during
+    // the earlier 14-day launch are brought up to the same policy.
+    await this.plans.updateOne({ key: 'hustle' }, { $set: { trialDays: 30 } }).exec();
+    const activeTrials = await this.subscriptions.find({ status: 'trialing', trialStartedAt: { $ne: null } }).exec();
+    for (const subscription of activeTrials) {
+      if (!subscription.trialStartedAt) continue;
+      const fullTrialEnd = new Date(new Date(subscription.trialStartedAt).getTime() + 30 * 86400000);
+      if (!subscription.trialEndsAt || subscription.trialEndsAt < fullTrialEnd) {
+        subscription.trialEndsAt = fullTrialEnd;
+        await subscription.save();
+      }
+    }
   }
 
   async listPublic(): Promise<PlanView[]> {
@@ -161,6 +173,10 @@ export class PlansService implements OnApplicationBootstrap {
 
   async getPlanForBusiness(businessId: string): Promise<{ plan: PlanDocument; subscription: SubscriptionDocument | null; entitlements: Entitlements }> {
     const subscription = await this.subscriptions.findOne({ businessId }).exec();
+    if (subscription?.status === 'trialing' && subscription.trialEndsAt && subscription.trialEndsAt.getTime() <= Date.now()) {
+      subscription.status = 'expired';
+      await subscription.save();
+    }
     let plan: PlanDocument | null = null;
     if (subscription && ['trialing', 'active', 'past_due'].includes(subscription.status)) {
       plan = await this.plans.findOne({ key: subscription.planKey }).exec();
