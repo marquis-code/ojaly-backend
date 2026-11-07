@@ -28,10 +28,12 @@ export class BuilderService {
     const business = await this.businesses.findById(businessId).lean().exec();
     if (!business) throw new NotFoundException('Business not found.');
     const planInfo = await this.plans.getPlanForBusiness(businessId);
-    const [products, productCount] = await Promise.all([
+    const [products, productCount, serviceDocs] = await Promise.all([
       this.products.find({ businessId, isActive: true }).sort({ createdAt: -1 }).limit(8).lean().exec(),
       this.products.countDocuments({ businessId, isActive: true }).exec(),
+      business.businessMode === 'products' ? Promise.resolve([]) : this.services.find({ businessId, isActive: true, isPublic: true }).sort({ createdAt: 1 }).limit(16).lean().exec(),
     ]);
+    const services = serviceDocs.map((service) => ({ ...service, id: String(service._id) }));
     return {
       business,
       template: getTemplate(business.templateKey),
@@ -42,6 +44,10 @@ export class BuilderService {
       plan: { name: planInfo.plan.name, entitlements: planInfo.entitlements },
       products,
       productCount,
+      services,
+      serviceCount: services.length,
+      providers: [],
+      businessMode: business.businessMode,
       urls: {
         path: `/s/${business.slug}`,
         subdomain: `${business.slug}.${this.config.get('publicRootDomain')}`,
