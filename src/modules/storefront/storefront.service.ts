@@ -324,6 +324,7 @@ export class StorefrontService {
       lookbookTitle: b.lookbookTitle,
       lookbook: b.lookbook || [],
       tagline: b.tagline,
+      serviceHeroTitle: b.serviceHeroTitle || '',
       brandColor: b.brandColor,
       templateKey: b.templateKey,
       sections: b.sections,

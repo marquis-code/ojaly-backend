@@ -157,7 +157,7 @@ export class BusinessesService {
     const update: Record<string, unknown> = {};
     const allowed = [
       'name', 'category', 'businessMode', 'description', 'logoUrl', 'bannerUrl', 'heroVideoUrl', 'storyImageUrl', 'lookbookTitle', 'lookbook', 'tagline',
-      'brandColor', 'templateKey', 'sections', 'socialLinks', 'publicPhone',
+      'brandColor', 'templateKey', 'sections', 'socialLinks', 'publicPhone', 'serviceHeroTitle',
       'whatsappNumber', 'email', 'address', 'about', 'orderPolicy', 'seoTitle', 'seoDescription',
       'settlementBankName', 'settlementBankCode', 'settlementAccountNumber', 'settlementAccountName',
     ] as const;

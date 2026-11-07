@@ -391,6 +391,13 @@ export class UpdateBusinessDto {
   @MaxLength(120)
   tagline?: string;
 
+  @ApiPropertyOptional()
+  @Transform(trim)
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  serviceHeroTitle?: string;
+
   @ApiPropertyOptional({ example: '#FF5A1F' })
   @Matches(/^#[0-9A-Fa-f]{6}$/, { message: 'Brand colour must be a 6-digit hex value.' })
   @IsOptional()

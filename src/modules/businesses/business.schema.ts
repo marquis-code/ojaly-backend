@@ -141,6 +141,9 @@ export class Business {
   @Prop({ type: String, default: 'We sell the good stuff.' })
   tagline: string;
 
+  @Prop({ type: String, default: '' })
+  serviceHeroTitle: string;
+
   @Prop({ type: String, default: '#FF5A1F' })
   brandColor: string;
 
