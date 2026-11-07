@@ -39,7 +39,7 @@ export class BuilderService {
       template: getTemplate(business.templateKey),
       templates: STOREFRONT_TEMPLATES.map((t) => ({
         ...t,
-        available: planInfo.entitlements.templates.includes(t.key),
+        available: !t.isPaid || planInfo.entitlements.templates.includes(t.key),
       })),
       plan: { name: planInfo.plan.name, entitlements: planInfo.entitlements },
       products,
