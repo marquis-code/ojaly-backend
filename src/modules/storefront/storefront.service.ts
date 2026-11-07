@@ -191,6 +191,9 @@ export class StorefrontService {
     const business = await this.requireBusiness({ slug: slug.toLowerCase() });
     const phone = normalizeNigerianPhone(dto.customerPhone);
     if (!phone) throw new BadRequestException('Enter a valid Nigerian phone number.');
+    if (!dto.payOnline) throw new BadRequestException('Online payment is required to place a storefront order. Message the business on WhatsApp if you need help first.');
+    if (!dto.customerEmail) throw new BadRequestException('Add your email to pay online.');
+
     const order = await this.orders.create(
       null,
       business._id.toString(),
@@ -212,7 +215,6 @@ export class StorefrontService {
     const message = `Hello ${business.name}! I placed order *${order.orderNumber}* on your website.\n\n${lines}\n\nTotal: ${formatNaira(order.totalKobo)}\nName: ${order.customerName}\nPhone: ${order.customerPhone}${order.deliveryAddress ? `\nDelivery: ${order.deliveryAddress}` : ''}\n\nOrder status: ${this.config.get('appUrl')}/order/${order.publicToken}`;
     let payment: { authorizationUrl: string; reference: string } | null = null;
     if (dto.payOnline) {
-      if (!dto.customerEmail) throw new BadRequestException('Add your email to pay online. You can also pay on WhatsApp.');
       const link = await this.payments.publicOrderLink(order.publicToken, dto.customerEmail);
       payment = { authorizationUrl: link.authorizationUrl, reference: link.reference };
     }
