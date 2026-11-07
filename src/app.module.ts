@@ -33,6 +33,7 @@ import { CustomRequestsModule } from './modules/custom-requests/custom-requests.
 import { BookingMessagesModule } from './modules/booking-messages/booking-messages.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { SupportModule } from './modules/support/support.module';
 import { StockModule } from './modules/stock/stock.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -106,6 +107,7 @@ import { JwtModule } from '@nestjs/jwt';
     BookingMessagesModule,
     PayrollModule,
     PromotionsModule,
+    SupportModule,
     StockModule,
     CustomersModule,
     DebtsModule,
