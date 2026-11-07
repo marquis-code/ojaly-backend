@@ -37,6 +37,10 @@ export class StockService {
     private readonly alerts: AlertsService,
   ) {}
 
+  async purgeProduct(businessId: string, productId: string) {
+    await this.movements.deleteMany({ businessId, productId }).exec();
+  }
+
   async restock(
     userId: string,
     businessId: string,

@@ -135,6 +135,14 @@ export class CreateProductDto {
   variants?: ProductVariantDto[];
 }
 
+export class DeleteProductsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  ids: string[];
+}
+
 export class UpdateProductDto {
   @ApiPropertyOptional()
   @Transform(trim)

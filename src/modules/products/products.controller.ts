@@ -6,6 +6,7 @@ import { PERMISSIONS } from '../../common/constants/permissions';
 import {
   AddVariantDto,
   CreateProductDto,
+  DeleteProductsDto,
   ProductQueryDto,
   UpdateProductDto,
   UpdateVariantDto,
@@ -61,6 +62,16 @@ export class ProductsController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.products.update(user.id, businessId, id, dto);
+  }
+
+  @Delete('batch')
+  @Permissions(PERMISSIONS.PRODUCTS_WRITE)
+  removeMany(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentBusiness() businessId: string,
+    @Body() dto: DeleteProductsDto,
+  ) {
+    return this.products.removeMany(user.id, businessId, dto.ids);
   }
 
   @Delete(':id')

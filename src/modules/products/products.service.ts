@@ -225,9 +225,19 @@ export class ProductsService {
   async remove(userId: string, businessId: string, productId: string) {
     const product = await this.products.findOne({ _id: productId, businessId }).exec();
     if (!product) throw new NotFoundException('Product not found.');
-    product.isActive = false;
-    await product.save();
-    return { deactivated: true };
+    await this.stock.purgeProduct(businessId, productId);
+    await this.products.deleteOne({ _id: productId, businessId }).exec();
+    return { deleted: true, id: productId };
+  }
+
+  async removeMany(userId: string, businessId: string, ids: string[]) {
+    const unique = [...new Set(ids)].filter((id) => Types.ObjectId.isValid(id));
+    if (!unique.length) throw new BadRequestException('Select at least one product.');
+    const found = await this.products.find({ _id: { $in: unique }, businessId }).select('_id').lean().exec();
+    if (found.length !== unique.length) throw new NotFoundException('One or more products were not found.');
+    await Promise.all(found.map((product) => this.stock.purgeProduct(businessId, String(product._id))));
+    const result = await this.products.deleteMany({ _id: { $in: unique }, businessId }).exec();
+    return { deleted: result.deletedCount || 0 };
   }
 
   async addVariant(userId: string, businessId: string, productId: string, dto: AddVariantDto) {
