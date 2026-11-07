@@ -72,6 +72,30 @@ export class StorefrontService {
     };
   }
 
+  async sitemap() {
+    const businesses = await this.businesses.find({
+      storefrontPublished: true,
+      isSuspended: { $ne: true },
+      isDemo: { $ne: true },
+    }).select('slug businessMode updatedAt').sort({ updatedAt: -1 }).limit(5000).lean().exec();
+    const urls: { loc: string; lastmod?: string; changefreq: string; priority: number }[] = [
+      { loc: '/', changefreq: 'weekly', priority: 1 },
+      { loc: '/marketplace', changefreq: 'daily', priority: 0.9 },
+      { loc: '/register', changefreq: 'monthly', priority: 0.6 },
+      { loc: '/login', changefreq: 'monthly', priority: 0.4 },
+    ];
+    for (const business of businesses) {
+      const base = `/s/${business.slug}`;
+      const lastmod = business.updatedAt ? new Date(business.updatedAt).toISOString() : undefined;
+      urls.push({ loc: base, lastmod, changefreq: 'weekly', priority: 0.9 });
+      urls.push({ loc: `${base}/about`, lastmod, changefreq: 'monthly', priority: 0.5 });
+      urls.push({ loc: `${base}/contact`, lastmod, changefreq: 'monthly', priority: 0.5 });
+      if (business.businessMode !== 'products') urls.push({ loc: `${base}/services`, lastmod, changefreq: 'weekly', priority: 0.8 });
+      if (business.businessMode !== 'services') urls.push({ loc: `${base}/products`, lastmod, changefreq: 'weekly', priority: 0.8 });
+    }
+    return { urls };
+  }
+
   async servicesList(slug: string) {
     const business = await this.requireBusiness({ slug: slug.toLowerCase() });
     const [items, providers, categories] = await Promise.all([

@@ -21,6 +21,12 @@ export class StorefrontController {
     return this.storefront.byDomain(domain);
   }
 
+  @Public()
+  @Get('sitemap')
+  sitemap() {
+    return this.storefront.sitemap();
+  }
+
   @Get(':slug')
   home(@Param('slug') slug: string) {
     return this.storefront.home(slug);
