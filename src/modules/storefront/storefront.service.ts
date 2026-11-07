@@ -306,6 +306,7 @@ export class StorefrontService {
       campusName: b.campusName || null,
       campusVerified: Boolean(b.campusVerified),
       bookingSettings: b.bookingSettings || null,
+      orderPolicy: b.orderPolicy || '',
       serviceChargeEnabled: Boolean(b.serviceChargeEnabled),
       serviceChargeType: b.serviceChargeType || 'percent',
       serviceChargePercent: b.serviceChargePercent || 0,

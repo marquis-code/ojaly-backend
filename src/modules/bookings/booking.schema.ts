@@ -216,6 +216,15 @@ export class Booking {
   @Prop({ type: String, default: null })
   cancellationReason: string | null;
 
+  @Prop({ type: String, enum: ['free', 'late', 'business', null], default: null })
+  cancellationType: 'free' | 'late' | 'business' | null;
+
+  @Prop({ type: Number, default: 0 })
+  cancellationPenaltyKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  cancellationRefundKobo: number;
+
   @Prop({ type: Date, default: null })
   cancelledAt: Date | null;
 

@@ -158,7 +158,7 @@ export class BusinessesService {
     const allowed = [
       'name', 'category', 'businessMode', 'description', 'logoUrl', 'bannerUrl', 'heroVideoUrl', 'storyImageUrl', 'lookbookTitle', 'lookbook', 'tagline',
       'brandColor', 'templateKey', 'sections', 'socialLinks', 'publicPhone',
-      'whatsappNumber', 'email', 'address', 'about', 'seoTitle', 'seoDescription',
+      'whatsappNumber', 'email', 'address', 'about', 'orderPolicy', 'seoTitle', 'seoDescription',
       'settlementBankName', 'settlementBankCode', 'settlementAccountNumber', 'settlementAccountName',
     ] as const;
     for (const key of allowed) {

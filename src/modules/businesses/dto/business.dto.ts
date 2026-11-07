@@ -205,6 +205,24 @@ export class BookingSettingsDto {
   @IsOptional()
   cancellationWindowHours?: number;
 
+  @ApiPropertyOptional({ enum: ['none', 'percent', 'fixed'] })
+  @IsIn(['none', 'percent', 'fixed'])
+  @IsOptional()
+  lateCancellationPenaltyType?: 'none' | 'percent' | 'fixed';
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  lateCancellationPenaltyPercent?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  lateCancellationPenaltyKobo?: number;
+
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
   @IsInt()
   @Min(0)
@@ -296,6 +314,13 @@ export class UpdateBusinessDto {
   @IsOptional()
   @MaxLength(600)
   description?: string;
+
+  @ApiPropertyOptional()
+  @Transform(trim)
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  orderPolicy?: string;
 
   @ApiPropertyOptional()
   @IsString()

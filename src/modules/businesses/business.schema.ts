@@ -27,6 +27,9 @@ export interface BookingSettings {
   windowDays: number;
   slotIntervalMinutes: number;
   cancellationWindowHours: number;
+  lateCancellationPenaltyType: 'none' | 'percent' | 'fixed';
+  lateCancellationPenaltyPercent: number;
+  lateCancellationPenaltyKobo: number;
   depositPercent: number;
   paymentCollection: 'deposit' | 'full';
   reminderHoursBefore: number;
@@ -53,6 +56,9 @@ export const defaultBookingSettings = (): BookingSettings => ({
   windowDays: 60,
   slotIntervalMinutes: 30,
   cancellationWindowHours: 24,
+  lateCancellationPenaltyType: 'none',
+  lateCancellationPenaltyPercent: 0,
+  lateCancellationPenaltyKobo: 0,
   depositPercent: 0,
   paymentCollection: 'deposit',
   reminderHoursBefore: 24,
@@ -179,6 +185,9 @@ export class Business {
 
   @Prop({ type: String, default: '' })
   about: string;
+
+  @Prop({ type: String, default: '' })
+  orderPolicy: string;
 
   @Prop({ type: Boolean, default: false })
   storefrontPublished: boolean;

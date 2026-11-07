@@ -12,6 +12,7 @@ import { Service, ServiceDocument } from '../services/service.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import { PaymentsService } from '../payments/payments.service';
 import { RiskService } from '../risk/risk.service';
 import { bookingConfirmedEmail, bookingReviewEmail } from '../mail/email-templates';
 import { SmsService } from '../sms/sms.service';
@@ -60,6 +61,7 @@ export class BookingsService {
     private readonly whatsapp: WhatsappClientService,
     private readonly promotions: PromotionsService,
     private readonly risk: RiskService,
+    private readonly payments: PaymentsService,
     private readonly packages: PackagesService,
     private readonly calendarSync: CalendarService,
     private readonly config: ConfigService,
@@ -518,6 +520,12 @@ export class BookingsService {
     booking.history.push({ status, at: new Date(), by: userId, note: reason || '' });
     await booking.save();
     if (status === 'cancelled') {
+      const refundable = Math.max(0, booking.amountPaidKobo - (booking.refundedKobo || 0));
+      booking.cancellationType = 'business';
+      booking.cancellationPenaltyKobo = 0;
+      booking.cancellationRefundKobo = refundable;
+      await booking.save();
+      if (refundable >= 100) await this.payments.refundBooking(businessId, String(booking._id), refundable).catch(() => undefined);
       await this.waitlist.offerOpening(businessId, booking.serviceId, booking.startAt).catch(() => undefined);
       void this.calendarSync.removeBooking(booking).catch(() => undefined);
     }
@@ -533,18 +541,34 @@ export class BookingsService {
     if (!booking) throw new NotFoundException('Booking not found.');
     if (['cancelled', 'completed'].includes(booking.status)) throw new BadRequestException('This booking can no longer be cancelled.');
     const business = await this.businesses.findById(booking.businessId).lean().exec();
-    const windowHours = business?.bookingSettings?.cancellationWindowHours ?? 24;
-    if (booking.startAt.getTime() - Date.now() < windowHours * 3600000) {
+    const settings = business?.bookingSettings;
+    const windowHours = settings?.cancellationWindowHours ?? 24;
+    const isLate = booking.startAt.getTime() - Date.now() < windowHours * 3600000;
+    const penaltyType = settings?.lateCancellationPenaltyType || 'none';
+    if (isLate && penaltyType === 'none') {
       throw new BadRequestException(`Online cancellation closes ${windowHours} hours before the appointment. Please contact the business.`);
     }
+    const paid = Math.max(0, booking.amountPaidKobo - (booking.refundedKobo || 0));
+    let assessedPenalty = 0;
+    if (isLate) {
+      assessedPenalty = penaltyType === 'fixed'
+        ? Math.max(0, settings?.lateCancellationPenaltyKobo || 0)
+        : Math.round((booking.priceKobo * Math.max(0, settings?.lateCancellationPenaltyPercent || 0)) / 100);
+    }
+    const penalty = Math.min(paid, assessedPenalty);
+    const refund = Math.max(0, paid - penalty);
     booking.status = 'cancelled';
     booking.cancelledAt = new Date();
-    booking.cancellationReason = dto.reason || 'Cancelled by customer';
+    booking.cancellationReason = dto.reason || (isLate ? 'Late cancellation by customer' : 'Cancelled by customer');
+    booking.cancellationType = isLate ? 'late' : 'free';
+    booking.cancellationPenaltyKobo = penalty;
+    booking.cancellationRefundKobo = refund;
     booking.history.push({ status: 'cancelled', at: new Date(), by: 'customer', note: booking.cancellationReason });
     await booking.save();
+    if (refund >= 100) await this.payments.refundBooking(booking.businessId, String(booking._id), refund).catch(() => undefined);
     await this.waitlist.offerOpening(booking.businessId, booking.serviceId, booking.startAt).catch(() => undefined);
     void this.calendarSync.removeBooking(booking).catch(() => undefined);
-    return { cancelled: true, booking: this.view(booking) };
+    return { cancelled: true, booking: this.view(booking), cancellation: { type: isLate ? 'late' : 'free', penaltyKobo: penalty, refundKobo: refund, windowHours } };
   }
 
   async reschedule(userId: string, businessId: string, id: string, dto: RescheduleBookingDto) {
@@ -916,6 +940,9 @@ export class BookingsService {
       reviewedAt: booking.reviewedAt,
       saleId: booking.saleId,
       cancellationReason: booking.cancellationReason,
+      cancellationType: booking.cancellationType || null,
+      cancellationPenaltyKobo: booking.cancellationPenaltyKobo || 0,
+      cancellationRefundKobo: booking.cancellationRefundKobo || 0,
       cancelledAt: booking.cancelledAt,
       completedAt: booking.completedAt,
       history: booking.history,
