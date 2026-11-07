@@ -163,6 +163,12 @@ export class Booking {
   serviceChargePercent: number;
 
   @Prop({ type: Number, default: 0 })
+  discountKobo: number;
+
+  @Prop({ type: String, default: null })
+  promotionLabel: string | null;
+
+  @Prop({ type: Number, default: 0 })
   providerFeeKobo: number;
 
   @Prop({ type: Number, default: 0 })

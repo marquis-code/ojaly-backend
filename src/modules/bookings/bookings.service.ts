@@ -11,6 +11,7 @@ import { Provider, ProviderDocument } from '../providers/provider.schema';
 import { Service, ServiceDocument } from '../services/service.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { bookingConfirmedEmail, bookingReviewEmail } from '../mail/email-templates';
 import { SmsService } from '../sms/sms.service';
 import { PackagesService } from '../packages/packages.service';
@@ -56,6 +57,7 @@ export class BookingsService {
     private readonly mail: MailService,
     private readonly sms: SmsService,
     private readonly whatsapp: WhatsappClientService,
+    private readonly promotions: PromotionsService,
     private readonly packages: PackagesService,
     private readonly calendarSync: CalendarService,
     private readonly config: ConfigService,
@@ -197,6 +199,11 @@ export class BookingsService {
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes, { ignoreWindow: effectiveSource !== 'storefront' && effectiveSource !== 'marketplace' });
 
     const subtotalKobo = overrides?.priceKobo ?? service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+    const promotion = packageRedemption ? null : await this.promotions.newCustomerDiscount({
+      customerPhone: phone, customerEmail: dto.customerEmail || null, subtotalKobo,
+    }).catch(() => null);
+    const discountKobo = promotion?.discountKobo || 0;
+    const discountedSubtotalKobo = Math.max(0, subtotalKobo - discountKobo);
 
     let serviceChargeKobo = 0;
     const serviceChargePercent = business.serviceChargePercent || 0;
@@ -204,27 +211,27 @@ export class BookingsService {
       if (business.serviceChargeType === 'fixed') {
         serviceChargeKobo = business.serviceChargeFixedKobo || 0;
       } else {
-        serviceChargeKobo = Math.round((subtotalKobo * serviceChargePercent) / 100);
+        serviceChargeKobo = Math.round((discountedSubtotalKobo * serviceChargePercent) / 100);
       }
     }
 
     let providerFeeKobo = 0;
     const providerFeePercent = business.providerFeePercent || 0;
-    if (business.providerFeeEnabled && subtotalKobo > 0) {
-      if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(subtotalKobo, business.providerFeeFixedKobo || 0);
-      else providerFeeKobo = Math.min(subtotalKobo, Math.round((subtotalKobo * providerFeePercent) / 100));
+    if (business.providerFeeEnabled && discountedSubtotalKobo > 0) {
+      if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(discountedSubtotalKobo, business.providerFeeFixedKobo || 0);
+      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * providerFeePercent) / 100));
     }
-    const providerNetKobo = Math.max(0, subtotalKobo - providerFeeKobo);
-    const totalKobo = subtotalKobo + serviceChargeKobo;
+    const providerNetKobo = Math.max(0, discountedSubtotalKobo - providerFeeKobo);
+    const totalKobo = discountedSubtotalKobo + serviceChargeKobo;
     const packageValueKobo = packageRedemption ? totalKobo : 0;
     const chargeKobo = packageRedemption ? 0 : totalKobo;
     const marketplaceFeePercent = marketplaceCampus ? (business.marketplaceFeePercent ?? 5) : 0;
     const marketplaceFeeKobo = marketplaceCampus ? Math.round((chargeKobo * marketplaceFeePercent) / 100) : 0;
     const depositPercent = business.bookingSettings?.depositPercent || 0;
     const baseDeposit = packageRedemption ? 0 : overrides?.depositKobo !== undefined
-      ? Math.min(subtotalKobo, Math.max(0, overrides.depositKobo))
+      ? Math.min(discountedSubtotalKobo, Math.max(0, overrides.depositKobo))
       : service.requiresDeposit
-        ? Math.min(subtotalKobo, service.depositKobo || Math.round((subtotalKobo * depositPercent) / 100))
+        ? Math.min(discountedSubtotalKobo, service.depositKobo || Math.round((discountedSubtotalKobo * depositPercent) / 100))
         : 0;
     const collectFull = business.bookingSettings?.paymentCollection === 'full';
     const depositKobo = packageRedemption ? 0 : collectFull ? totalKobo : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
@@ -298,6 +305,8 @@ export class BookingsService {
           subtotalKobo: packageRedemption ? 0 : subtotalKobo,
           serviceChargeKobo: packageRedemption ? 0 : serviceChargeKobo,
           serviceChargePercent: business.serviceChargeEnabled ? serviceChargePercent : 0,
+          discountKobo,
+          promotionLabel: promotion?.label || null,
           providerFeeKobo,
           providerFeePercent: business.providerFeeEnabled ? providerFeePercent : 0,
           providerNetKobo,
@@ -885,6 +894,8 @@ export class BookingsService {
       status: booking.status,
       source: booking.source,
       notes: booking.notes,
+      discountKobo: booking.discountKobo || 0,
+      promotionLabel: booking.promotionLabel || null,
       location: booking.location || '',
       subtotalKobo: booking.subtotalKobo || booking.priceKobo,
       serviceChargeKobo: booking.serviceChargeKobo || 0,

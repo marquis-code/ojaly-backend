@@ -8,6 +8,7 @@ import { Membership, MembershipSchema } from '../memberships/membership.schema';
 import { Plan, PlanSchema } from '../plans/plan.schema';
 import { Subscription, SubscriptionSchema } from '../plans/subscription.schema';
 import { Coupon, CouponSchema } from '../plans/coupon.schema';
+import { PromotionsModule } from '../promotions/promotions.module';
 import { Payment, PaymentSchema } from '../payments/payment.schema';
 import { WebhookEvent, WebhookEventSchema } from '../payments/webhook-event.schema';
 import { WhatsappMessage, WhatsappMessageSchema } from '../whatsapp/whatsapp-message.schema';
@@ -45,6 +46,7 @@ import { JwtModule } from '@nestjs/jwt';
       { name: SupportNote.name, schema: SupportNoteSchema },
     ]),
     PaymentsModule,
+    PromotionsModule,
     NotificationsModule,
     AffiliatesModule,
     JwtModule.register({}),

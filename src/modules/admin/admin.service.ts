@@ -9,6 +9,7 @@ import { Membership, MembershipDocument } from '../memberships/membership.schema
 import { Plan, PlanDocument } from '../plans/plan.schema';
 import { Subscription, SubscriptionDocument } from '../plans/subscription.schema';
 import { Coupon, CouponDocument } from '../plans/coupon.schema';
+import { PromotionsService } from '../promotions/promotions.service';
 import { Payment, PaymentDocument } from '../payments/payment.schema';
 import { WebhookEvent, WebhookEventDocument } from '../payments/webhook-event.schema';
 import { WhatsappMessage, WhatsappMessageDocument } from '../whatsapp/whatsapp-message.schema';
@@ -50,6 +51,7 @@ export class AdminService {
     @InjectModel(Plan.name) private readonly plans: Model<PlanDocument>,
     @InjectModel(Subscription.name) private readonly subscriptions: Model<SubscriptionDocument>,
     @InjectModel(Coupon.name) private readonly coupons: Model<CouponDocument>,
+    private readonly promotions: PromotionsService,
     @InjectModel(Payment.name) private readonly payments: Model<PaymentDocument>,
     @InjectModel(WebhookEvent.name) private readonly webhooks: Model<WebhookEventDocument>,
     @InjectModel(WhatsappMessage.name) private readonly whatsappMessages: Model<WhatsappMessageDocument>,
@@ -454,6 +456,20 @@ export class AdminService {
         percent: business.providerFeePercent, fixedKobo: business.providerFeeFixedKobo,
       },
     };
+  }
+
+  async getNewCustomerPromotion() {
+    return this.promotions.getNewCustomer();
+  }
+
+  async updateNewCustomerPromotion(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number }) {
+    const promotion = await this.promotions.updateNewCustomer(dto);
+    await this.audit.record({
+      actorId, actorType: 'platform_admin', action: 'admin.new_customer_promotion_updated',
+      entity: 'promotion', entityId: String(promotion?._id || 'new_customer'),
+      metadata: { enabled: dto.enabled, percentOff: dto.percentOff, maxDiscountKobo: dto.maxDiscountKobo || 0 },
+    });
+    return promotion;
   }
 
   async listPlans() {

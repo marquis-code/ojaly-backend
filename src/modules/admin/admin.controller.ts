@@ -20,6 +20,7 @@ import {
   ExtendTrialDto,
   SuspendBusinessDto,
   UpdatePlanDto,
+  UpdateNewCustomerPromotionDto,
   UpdateProviderFeeDto,
   UpdateServiceChargeDto,
 } from './dto/admin.dto';
@@ -120,6 +121,17 @@ export class AdminController {
     @Body() dto: UpdateProviderFeeDto,
   ) {
     return this.admin.updateProviderFee(user.id, id, dto);
+  }
+
+  @Get('promotions/new-customer')
+  newCustomerPromotion() {
+    return this.admin.getNewCustomerPromotion();
+  }
+
+  @PlatformRoles('super_admin')
+  @Patch('promotions/new-customer')
+  updateNewCustomerPromotion(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateNewCustomerPromotionDto) {
+    return this.admin.updateNewCustomerPromotion(user.id, dto);
   }
 
   @Get('plans')

@@ -493,3 +493,23 @@ export class UpdateServiceChargeDto {
   fixedKobo?: number;
 }
 
+
+export class UpdateNewCustomerPromotionDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled: boolean;
+
+  @ApiProperty({ example: 10 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percentOff: number;
+
+  @ApiPropertyOptional({ example: 500000, description: 'Optional maximum discount in kobo' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  maxDiscountKobo?: number;
+}
