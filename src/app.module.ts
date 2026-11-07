@@ -30,6 +30,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { AiModule } from './modules/ai/ai.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { CustomRequestsModule } from './modules/custom-requests/custom-requests.module';
+import { BookingMessagesModule } from './modules/booking-messages/booking-messages.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { StockModule } from './modules/stock/stock.module';
@@ -102,6 +103,7 @@ import { JwtModule } from '@nestjs/jwt';
     AiModule,
     MarketplaceModule,
     CustomRequestsModule,
+    BookingMessagesModule,
     PayrollModule,
     PromotionsModule,
     StockModule,
