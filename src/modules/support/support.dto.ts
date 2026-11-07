@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -10,6 +10,12 @@ export class StartSupportConversationDto {
   @ApiProperty() @Transform(trim) @IsString() @MinLength(7) @MaxLength(30) phone: string;
 }
 
+export class SupportAttachmentDto {
+  @ApiProperty() @IsUrl({ require_protocol: true }) url: string;
+  @ApiProperty({ enum: ['image', 'audio'] }) @IsIn(['image', 'audio']) type: 'image' | 'audio';
+}
+
 export class SendSupportMessageDto {
-  @ApiProperty() @Transform(trim) @IsString() @MinLength(1) @MaxLength(3000) body: string;
+  @ApiPropertyOptional() @Transform(trim) @IsString() @MaxLength(3000) @IsOptional() body?: string;
+  @ApiPropertyOptional({ type: [SupportAttachmentDto] }) @IsArray() @IsOptional() attachments?: SupportAttachmentDto[];
 }

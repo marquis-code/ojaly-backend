@@ -31,6 +31,28 @@ export class UploadsService {
     };
   }
 
+  async uploadPublicSupportAttachment(file: { buffer: Buffer; mimetype: string; size: number }) {
+    const cloudName = this.config.get<string>('cloudinary.cloudName');
+    const apiKey = this.config.get<string>('cloudinary.apiKey');
+    const apiSecret = this.config.get<string>('cloudinary.apiSecret');
+    if (!cloudName || !apiKey || !apiSecret) throw new ServiceUnavailableException('File uploads are not configured yet.');
+    if (!file?.buffer?.length) throw new BadRequestException('Choose a file to upload.');
+    const image = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+    const audio = ['audio/webm', 'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav'].includes(file.mimetype);
+    if (!image && !audio) throw new BadRequestException('Attach an image or a voice note.');
+    if (file.size > (audio ? 15 : 5) * 1024 * 1024) throw new BadRequestException(audio ? 'Voice notes must be smaller than 15 MB.' : 'Images must be smaller than 5 MB.');
+    cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+    const base = this.config.get<string>('cloudinary.folder') || 'ojaly';
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: `${base}/support`, resource_type: image ? 'image' : 'video', transformation: image ? [{ width: 1800, crop: 'limit', quality: 'auto', fetch_format: 'auto' }] : undefined },
+        (error, uploaded) => error || !uploaded ? reject(error) : resolve(uploaded),
+      );
+      stream.end(file.buffer);
+    });
+    return { url: result.secure_url, type: image ? 'image' : 'audio' };
+  }
+
   async uploadPublicRequestImage(file: { buffer: Buffer; mimetype: string; size: number }) {
     const cloudName = this.config.get<string>('cloudinary.cloudName');
     const apiKey = this.config.get<string>('cloudinary.apiKey');

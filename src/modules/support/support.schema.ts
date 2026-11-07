@@ -3,6 +3,7 @@ import { HydratedDocument } from 'mongoose';
 import { schemaOptions } from '../../common/schemas/schema-options';
 
 export type SupportConversationDocument = HydratedDocument<SupportConversation>;
+export interface SupportAttachment { url: string; type: 'image' | 'audio'; }
 export type SupportMessageDocument = HydratedDocument<SupportMessage>;
 
 @Schema(schemaOptions('support_conversations'))
@@ -51,8 +52,11 @@ export class SupportMessage {
   @Prop({ type: String, default: '' })
   senderName: string;
 
-  @Prop({ type: String, required: true })
+  @Prop({ type: String, default: '' })
   body: string;
+
+  @Prop({ type: [Object], default: [] })
+  attachments: SupportAttachment[];
 
   @Prop({ type: Date, default: null })
   readByAdminAt: Date | null;

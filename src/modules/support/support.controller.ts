@@ -29,7 +29,7 @@ export class SupportController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Post('conversations/:token/messages')
   send(@Param('token') token: string, @Body() dto: SendSupportMessageDto) {
-    return this.support.sendPublic(token, dto.body);
+    return this.support.sendPublic(token, dto.body || '', dto.attachments || []);
   }
 }
 
@@ -54,7 +54,7 @@ export class SupportAdminController {
   @PlatformRoles('super_admin', 'support')
   @Post('conversations/:id/messages')
   send(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SendSupportMessageDto) {
-    return this.support.sendAdmin(id, dto.body, user.email || 'Ojaly Support');
+    return this.support.sendAdmin(id, dto.body || '', user.email || 'Ojaly Support', dto.attachments || []);
   }
 
   @PlatformRoles('super_admin', 'support')

@@ -21,6 +21,15 @@ export class UploadsController {
 
   @Public()
   @Throttle({ default: { limit: 12, ttl: 60000 } })
+  @Public()
+  @Throttle({ default: { limit: 12, ttl: 60000 } })
+  @Post('public/support')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
+  uploadSupportFile(@UploadedFile() file: { buffer: Buffer; mimetype: string; size: number }) {
+    if (!file) throw new BadRequestException('Choose a file to upload.');
+    return this.uploads.uploadPublicSupportAttachment(file);
+  }
+
   @Post('public/custom-request')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   uploadRequestPhoto(@UploadedFile() file: { buffer: Buffer; mimetype: string; size: number }) {

@@ -3,9 +3,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { randomToken } from '../../common/utils/tokens';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
-import { sanitizeText } from '../../common/utils/sanitize';
+import { escapeHtml, sanitizeText } from '../../common/utils/sanitize';
 import { MailService } from '../mail/mail.service';
-import { SupportConversation, SupportConversationDocument, SupportMessage, SupportMessageDocument } from './support.schema';
+import { SupportAttachment, SupportConversation, SupportConversationDocument, SupportMessage, SupportMessageDocument } from './support.schema';
 
 @Injectable()
 export class SupportService {
@@ -40,16 +40,23 @@ export class SupportService {
     return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'visitor')) };
   }
 
-  async sendPublic(token: string, body: string) {
+  async sendPublic(token: string, body: string, attachments: SupportAttachment[] = []) {
     const conversation = await this.conversations.findOne({ publicToken: token }).exec();
     if (!conversation) throw new NotFoundException('Conversation not found.');
     if (conversation.status === 'closed') throw new BadRequestException('This conversation is closed. Start a new chat.');
+    const clean = this.cleanAttachments(attachments);
+    if (!body.trim() && !clean.length) throw new BadRequestException('Write a message or attach a file.');
     const message = await this.messages.create({
       conversationId: String(conversation._id), sender: 'visitor', senderName: conversation.visitorName,
-      body: sanitizeText(body, 3000), readByVisitorAt: new Date(),
+      body: sanitizeText(body, 3000), attachments: clean, readByVisitorAt: new Date(),
     });
     conversation.unreadAdmin += 1; conversation.lastMessageAt = new Date(); conversation.status = 'open';
     await conversation.save();
+    await this.mail.send({
+      to: 'hello@ojaly.org', subject: `New support message · ${conversation.visitorName}`,
+      template: 'support_chat_message',
+      html: `<p><strong>${conversation.visitorName}</strong> sent a support message.</p><p>${escapeHtml(message.body || 'Attachment sent')}</p><p>Email: ${conversation.visitorEmail}<br>Phone: ${conversation.visitorPhone}</p><p>Reply in Ojaly Ops → Support inbox.</p>`,
+    }).catch(() => undefined);
     return this.messageView(message, 'visitor');
   }
 
@@ -79,13 +86,15 @@ export class SupportService {
     return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'admin')) };
   }
 
-  async sendAdmin(id: string, body: string, adminName: string) {
+  async sendAdmin(id: string, body: string, adminName: string, attachments: SupportAttachment[] = []) {
     const conversation = await this.conversations.findById(id).exec();
     if (!conversation) throw new NotFoundException('Conversation not found.');
     if (conversation.status === 'closed') throw new BadRequestException('This conversation is closed.');
+    const clean = this.cleanAttachments(attachments);
+    if (!body.trim() && !clean.length) throw new BadRequestException('Write a message or attach a file.');
     const message = await this.messages.create({
       conversationId: String(conversation._id), sender: 'admin', senderName: adminName || 'Ojaly Support',
-      body: sanitizeText(body, 3000), readByAdminAt: new Date(),
+      body: sanitizeText(body, 3000), attachments: clean, readByAdminAt: new Date(),
     });
     conversation.unreadVisitor += 1; conversation.lastMessageAt = new Date();
     await conversation.save();
@@ -96,6 +105,10 @@ export class SupportService {
     const conversation = await this.conversations.findByIdAndUpdate(id, { $set: { status: 'closed' } }, { new: true }).exec();
     if (!conversation) throw new NotFoundException('Conversation not found.');
     return this.conversationView(conversation);
+  }
+
+  private cleanAttachments(attachments: SupportAttachment[] = []) {
+    return attachments.slice(0, 3).filter((item) => (item.type === 'image' || item.type === 'audio') && /^https?:\/\//.test(item.url));
   }
 
   private conversationView(conversation: SupportConversationDocument | SupportConversation) {
@@ -111,7 +124,7 @@ export class SupportService {
   private messageView(message: SupportMessageDocument | SupportMessage, role: 'visitor' | 'admin') {
     return {
       id: String((message as { _id: unknown })._id), sender: message.sender, senderName: message.senderName,
-      body: message.body, createdAt: (message as { createdAt?: Date }).createdAt,
+      body: message.body, attachments: message.attachments || [], createdAt: (message as { createdAt?: Date }).createdAt,
       seen: role === 'admin' ? Boolean(message.readByAdminAt) : Boolean(message.readByVisitorAt),
     };
   }
