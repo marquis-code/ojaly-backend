@@ -463,6 +463,13 @@ export class AdminService {
   async fraudStats() { return this.risk.stats(); }
   async fraudEvents(limit: number) { return this.risk.list(undefined, limit); }
 
+  async getPlatformCampaign() { return this.promotions.getPlatformCampaign(); }
+  async updatePlatformCampaign(actorId: string, dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number; label?: string; bannerText?: string; badgeText?: string }) {
+    const promotion = await this.promotions.updatePlatformCampaign(dto);
+    await this.audit.record({ actorId, actorType: 'platform_admin', action: 'admin.platform_campaign_updated', entity: 'promotion', entityId: String(promotion?._id || 'platform_campaign'), metadata: { enabled: dto.enabled, percentOff: dto.percentOff } });
+    return promotion;
+  }
+
   async getNewCustomerPromotion() {
     return this.promotions.getNewCustomer();
   }

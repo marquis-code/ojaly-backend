@@ -7,6 +7,12 @@ export class PromotionsController {
   constructor(private readonly promotions: PromotionsService) {}
 
   @Public()
+  @Get('public/platform')
+  platform() {
+    return this.promotions.publicPlatformCampaign();
+  }
+
+  @Public()
   @Get('public/new-customer')
   async newCustomer() {
     const promotion = await this.promotions.getNewCustomer();

@@ -204,9 +204,11 @@ export class BookingsService {
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes, { ignoreWindow: effectiveSource !== 'storefront' && effectiveSource !== 'marketplace' });
 
     const subtotalKobo = overrides?.priceKobo ?? service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
-    const promotion = packageRedemption ? null : await this.promotions.newCustomerDiscount({
-      customerPhone: phone, customerEmail: dto.customerEmail || null, subtotalKobo,
-    }).catch(() => null);
+    const promotion = packageRedemption
+      ? null
+      : (await this.promotions.platformDiscount(subtotalKobo).catch(() => null)) || await this.promotions.newCustomerDiscount({
+          customerPhone: phone, customerEmail: dto.customerEmail || null, subtotalKobo,
+        }).catch(() => null);
     const discountKobo = promotion?.discountKobo || 0;
     const discountedSubtotalKobo = Math.max(0, subtotalKobo - discountKobo);
 

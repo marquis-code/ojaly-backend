@@ -20,6 +20,7 @@ import { DebtsService } from '../debts/debts.service';
 import { CustomersService } from '../customers/customers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AlertsService } from '../notifications/alerts.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { nextSequence } from '../../common/utils/order-number';
 import { randomToken } from '../../common/utils/tokens';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
@@ -46,6 +47,7 @@ export class OrdersService {
     private readonly customersService: CustomersService,
     private readonly notifications: NotificationsService,
     private readonly alerts: AlertsService,
+    private readonly promotions: PromotionsService,
   ) {}
 
   async create(userId: string | null, businessId: string, dto: CreateOrderDto, sourceOverride?: string) {
@@ -87,7 +89,10 @@ export class OrdersService {
           }
         }
         const subtotal = stockResult.lines.reduce((s, l) => s + l.unitPriceKobo * l.quantity, 0);
-        const discount = Math.min(dto.discountKobo || 0, subtotal);
+        const campaign = (sourceOverride === 'storefront' || dto.source === 'storefront')
+          ? await this.promotions.platformDiscount(subtotal)
+          : null;
+        const discount = Math.min(subtotal, (dto.discountKobo || 0) + (campaign?.discountKobo || 0));
         const delivery = Math.max(0, dto.deliveryFeeKobo || 0);
         const total = Math.max(0, subtotal - discount + delivery);
         const amountPaid = Math.min(dto.amountPaidKobo || 0, total);

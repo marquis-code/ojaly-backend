@@ -20,6 +20,15 @@ export class Promotion {
 
   @Prop({ type: Number, default: 0, min: 0 })
   maxDiscountKobo: number;
+
+  @Prop({ type: String, default: '10% off everything' })
+  label: string;
+
+  @Prop({ type: String, default: 'Ojaly is giving every customer 10% off every order and booking.' })
+  bannerText: string;
+
+  @Prop({ type: String, default: '10% OFF' })
+  badgeText: string;
 }
 
 export const PromotionSchema = SchemaFactory.createForClass(Promotion);

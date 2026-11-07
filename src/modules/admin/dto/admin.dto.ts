@@ -494,6 +494,15 @@ export class UpdateServiceChargeDto {
 }
 
 
+export class UpdatePlatformCampaignDto {
+  @ApiProperty() @IsBoolean() enabled: boolean;
+  @ApiProperty({ minimum: 0, maximum: 100 }) @IsInt() @Min(0) @Max(100) percentOff: number;
+  @ApiPropertyOptional({ minimum: 0 }) @IsInt() @Min(0) @IsOptional() maxDiscountKobo?: number;
+  @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(100) label?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(200) bannerText?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() @MaxLength(40) badgeText?: string;
+}
+
 export class UpdateNewCustomerPromotionDto {
   @ApiProperty()
   @IsBoolean()

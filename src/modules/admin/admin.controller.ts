@@ -21,6 +21,7 @@ import {
   SuspendBusinessDto,
   UpdatePlanDto,
   UpdateNewCustomerPromotionDto,
+  UpdatePlatformCampaignDto,
   UpdateProviderFeeDto,
   UpdateServiceChargeDto,
 } from './dto/admin.dto';
@@ -128,6 +129,13 @@ export class AdminController {
 
   @Get('fraud/events')
   fraudEvents(@Query('limit') limit?: string) { return this.admin.fraudEvents(Number(limit) || 100); }
+
+  @Get('promotions/platform')
+  platformCampaign() { return this.admin.getPlatformCampaign(); }
+
+  @PlatformRoles('super_admin')
+  @Patch('promotions/platform')
+  updatePlatformCampaign(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdatePlatformCampaignDto) { return this.admin.updatePlatformCampaign(user.id, dto); }
 
   @Get('promotions/new-customer')
   newCustomerPromotion() {

@@ -14,6 +14,7 @@ import { SalesModule } from '../sales/sales.module';
 import { DebtsModule } from '../debts/debts.module';
 import { CustomersModule } from '../customers/customers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PromotionsModule } from '../promotions/promotions.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     DebtsModule,
     CustomersModule,
     NotificationsModule,
+    PromotionsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

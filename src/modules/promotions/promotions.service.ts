@@ -35,6 +35,43 @@ export class PromotionsService {
     ).exec();
   }
 
+  async getPlatformCampaign() {
+    return this.promotions.findOneAndUpdate(
+      { key: 'platform_campaign' },
+      { $setOnInsert: { enabled: false, percentOff: 10, maxDiscountKobo: 0, label: '10% off everything', bannerText: 'Ojaly is giving every customer 10% off every order and booking.', badgeText: '10% OFF' } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).exec();
+  }
+
+  async publicPlatformCampaign() {
+    const promotion = await this.getPlatformCampaign();
+    return {
+      enabled: Boolean(promotion.enabled), percentOff: promotion.percentOff || 0,
+      label: promotion.label || '', bannerText: promotion.bannerText || '', badgeText: promotion.badgeText || '',
+    };
+  }
+
+  async updatePlatformCampaign(dto: { enabled: boolean; percentOff: number; maxDiscountKobo?: number; label?: string; bannerText?: string; badgeText?: string }) {
+    return this.promotions.findOneAndUpdate(
+      { key: 'platform_campaign' },
+      { $set: {
+        enabled: Boolean(dto.enabled), percentOff: Math.max(0, Math.min(100, dto.percentOff)),
+        maxDiscountKobo: Math.max(0, dto.maxDiscountKobo || 0), label: (dto.label || '').slice(0, 100),
+        bannerText: (dto.bannerText || '').slice(0, 200), badgeText: (dto.badgeText || '').slice(0, 40),
+      } },
+      { upsert: true, new: true },
+    ).exec();
+  }
+
+  async platformDiscount(subtotalKobo: number): Promise<NewCustomerDiscount | null> {
+    if (subtotalKobo <= 0) return null;
+    const promotion = await this.getPlatformCampaign();
+    if (!promotion.enabled || promotion.percentOff <= 0) return null;
+    const raw = Math.round((subtotalKobo * promotion.percentOff) / 100);
+    const discountKobo = promotion.maxDiscountKobo > 0 ? Math.min(raw, promotion.maxDiscountKobo) : raw;
+    return { discountKobo: Math.min(discountKobo, subtotalKobo), percentOff: promotion.percentOff, label: promotion.label || `Ojaly ${promotion.percentOff}% off` };
+  }
+
   async newCustomerDiscount(input: { customerPhone: string; customerEmail?: string | null; subtotalKobo: number }): Promise<NewCustomerDiscount | null> {
     const promotion = await this.getNewCustomer();
     if (!promotion.enabled || promotion.percentOff <= 0 || input.subtotalKobo <= 0) return null;
