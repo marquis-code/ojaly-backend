@@ -91,7 +91,7 @@ export class MarketplaceService {
         serviceCount: ownServices.length, productCount: ownProducts.length,
         startingPriceKobo: prices.length ? Math.min(...prices) : null,
         href: isService ? `/s/${business.slug}/services` : `/s/${business.slug}`,
-        cta: isService ? 'Book a service' : 'Shop products',
+        cta: isService ? 'Book a service' : business.businessMode === 'hybrid' ? 'Shop & book' : 'Shop products',
       };
     });
   }
