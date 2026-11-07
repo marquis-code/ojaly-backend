@@ -34,6 +34,12 @@ export class SupportConversation {
 
   @Prop({ type: Date, default: null })
   lastMessageAt: Date | null;
+
+  @Prop({ type: Date, default: null })
+  visitorTypingAt: Date | null;
+
+  @Prop({ type: Date, default: null })
+  adminTypingAt: Date | null;
 }
 
 export const SupportConversationSchema = SchemaFactory.createForClass(SupportConversation);

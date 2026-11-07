@@ -26,6 +26,12 @@ export class SupportController {
   }
 
   @Public()
+  @Post('conversations/:token/typing')
+  typing(@Param('token') token: string) {
+    return this.support.setVisitorTyping(token);
+  }
+
+  @Public()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Post('conversations/:token/messages')
   send(@Param('token') token: string, @Body() dto: SendSupportMessageDto) {
@@ -49,6 +55,12 @@ export class SupportAdminController {
   @Get('conversations/:id')
   thread(@Param('id') id: string) {
     return this.support.adminThread(id);
+  }
+
+  @PlatformRoles('super_admin', 'support')
+  @Post('conversations/:id/typing')
+  typing(@Param('id') id: string) {
+    return this.support.setAdminTyping(id);
   }
 
   @PlatformRoles('super_admin', 'support')

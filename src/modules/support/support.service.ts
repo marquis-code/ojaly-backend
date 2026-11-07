@@ -21,13 +21,20 @@ export class SupportService {
     const conversation = await this.conversations.create({
       publicToken: randomToken(24), visitorName: sanitizeText(input.name, 100),
       visitorEmail: input.email.toLowerCase().trim(), visitorPhone: phone,
-      status: 'open', unreadAdmin: 0, unreadVisitor: 0,
+      status: 'open', unreadAdmin: 1, unreadVisitor: 1,
     });
+    const welcome = await this.messages.create({
+      conversationId: String(conversation._id), sender: 'admin', senderName: 'Ojaly Support',
+      body: `Hi ${conversation.visitorName.split(' ')[0] || 'there'} — thanks for reaching out. An Ojaly team member will reply here shortly. You can send images or voice notes if that helps.`,
+      readByAdminAt: new Date(),
+    });
+    conversation.lastMessageAt = new Date();
+    await conversation.save();
     await this.mail.send({
       to: 'hello@ojaly.org', subject: `New support chat · ${conversation.visitorName}`,
       template: 'support_chat_started', html: `<p><strong>${conversation.visitorName}</strong> started a support chat.</p><p>Email: ${conversation.visitorEmail}<br>Phone: ${conversation.visitorPhone}</p><p>Open Ojaly Ops → Support inbox to reply.</p>`,
     }).catch(() => undefined);
-    return { token: conversation.publicToken, conversation: this.conversationView(conversation), messages: [] };
+    return { token: conversation.publicToken, conversation: this.conversationView(conversation), messages: [this.messageView(welcome, 'visitor')] };
   }
 
   async publicThread(token: string) {
@@ -37,7 +44,7 @@ export class SupportService {
     conversation.unreadVisitor = 0;
     await conversation.save();
     const messages = await this.messages.find({ conversationId: String(conversation._id) }).sort({ createdAt: 1 }).limit(300).lean().exec();
-    return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'visitor')) };
+    return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'visitor')), typing: { visitor: this.isTyping(conversation.visitorTypingAt), admin: this.isTyping(conversation.adminTypingAt) } };
   }
 
   async sendPublic(token: string, body: string, attachments: SupportAttachment[] = []) {
@@ -50,7 +57,7 @@ export class SupportService {
       conversationId: String(conversation._id), sender: 'visitor', senderName: conversation.visitorName,
       body: sanitizeText(body, 3000), attachments: clean, readByVisitorAt: new Date(),
     });
-    conversation.unreadAdmin += 1; conversation.lastMessageAt = new Date(); conversation.status = 'open';
+    conversation.unreadAdmin += 1; conversation.lastMessageAt = new Date(); conversation.status = 'open'; conversation.visitorTypingAt = null;
     await conversation.save();
     await this.mail.send({
       to: 'hello@ojaly.org', subject: `New support message · ${conversation.visitorName}`,
@@ -83,7 +90,7 @@ export class SupportService {
     conversation.unreadAdmin = 0;
     await conversation.save();
     const messages = await this.messages.find({ conversationId: String(conversation._id) }).sort({ createdAt: 1 }).limit(300).lean().exec();
-    return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'admin')) };
+    return { conversation: this.conversationView(conversation), messages: messages.map((message) => this.messageView(message, 'admin')), typing: { visitor: this.isTyping(conversation.visitorTypingAt), admin: this.isTyping(conversation.adminTypingAt) } };
   }
 
   async sendAdmin(id: string, body: string, adminName: string, attachments: SupportAttachment[] = []) {
@@ -96,10 +103,28 @@ export class SupportService {
       conversationId: String(conversation._id), sender: 'admin', senderName: adminName || 'Ojaly Support',
       body: sanitizeText(body, 3000), attachments: clean, readByAdminAt: new Date(),
     });
-    conversation.unreadVisitor += 1; conversation.lastMessageAt = new Date();
+    conversation.unreadVisitor += 1; conversation.lastMessageAt = new Date(); conversation.adminTypingAt = null;
     await conversation.save();
     return this.messageView(message, 'admin');
   }
+
+  async setVisitorTyping(token: string) {
+    const conversation = await this.conversations.findOne({ publicToken: token }).exec();
+    if (!conversation || conversation.status === 'closed') return { typing: false };
+    conversation.visitorTypingAt = new Date();
+    await conversation.save();
+    return { typing: true };
+  }
+
+  async setAdminTyping(id: string) {
+    const conversation = await this.conversations.findById(id).exec();
+    if (!conversation || conversation.status === 'closed') return { typing: false };
+    conversation.adminTypingAt = new Date();
+    await conversation.save();
+    return { typing: true };
+  }
+
+  private isTyping(value: Date | null | undefined) { return Boolean(value && Date.now() - new Date(value).getTime() < 5000); }
 
   async close(id: string) {
     const conversation = await this.conversations.findByIdAndUpdate(id, { $set: { status: 'closed' } }, { new: true }).exec();
