@@ -6,7 +6,6 @@ import { Service, ServiceSchema } from '../services/service.schema';
 import { Membership, MembershipSchema } from '../memberships/membership.schema';
 import { User, UserSchema } from '../users/user.schema';
 import { MailModule } from '../mail/mail.module';
-import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { StorefrontConversation, StorefrontConversationSchema, StorefrontChatMessage, StorefrontChatMessageSchema } from './storefront-chat.schema';
 import { PublicStorefrontChatController, StorefrontChatController } from './storefront-chat.controller';
 import { StorefrontChatService } from './storefront-chat.service';
@@ -23,7 +22,6 @@ import { StorefrontChatService } from './storefront-chat.service';
       { name: User.name, schema: UserSchema },
     ]),
     MailModule,
-    WhatsappModule,
   ],
   controllers: [StorefrontChatController, PublicStorefrontChatController],
   providers: [StorefrontChatService],

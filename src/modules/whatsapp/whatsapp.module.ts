@@ -45,6 +45,6 @@ import { ExpensesModule } from '../expenses/expenses.module';
   ],
   controllers: [WhatsappWebhookController, WhatsappSettingsController, PasteChatController],
   providers: [BotService, ChatParserService, LlmParserService],
-  exports: [ChatParserService, WhatsappClientService],
+  exports: [ChatParserService],
 })
 export class WhatsappModule {}
