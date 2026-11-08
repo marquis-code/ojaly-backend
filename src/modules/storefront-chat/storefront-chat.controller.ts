@@ -14,7 +14,7 @@ export class StorefrontChatController {
   constructor(private readonly chat: StorefrontChatService) {}
   @Get() @Permissions(PERMISSIONS.BOOKINGS_READ) list(@CurrentBusiness() businessId: string) { return this.chat.vendorList(businessId); }
   @Get(':id') @Permissions(PERMISSIONS.BOOKINGS_READ) thread(@CurrentBusiness() businessId: string, @Param('id') id: string) { return this.chat.vendorThread(businessId, id); }
-  @Post(':id/messages') @Permissions(PERMISSIONS.BOOKINGS_WRITE) send(@CurrentBusiness() businessId: string, @Param('id') id: string, @Body() dto: SendStorefrontChatDto) { return this.chat.sendVendor(businessId, id, dto.body); }
+  @Post(':id/messages') @Permissions(PERMISSIONS.BOOKINGS_WRITE) send(@CurrentBusiness() businessId: string, @Param('id') id: string, @Body() dto: SendStorefrontChatDto) { return this.chat.sendVendor(businessId, id, dto.body || '', dto.attachments || []); }
   @Post(':id/close') @Permissions(PERMISSIONS.BOOKINGS_WRITE) close(@CurrentBusiness() businessId: string, @Param('id') id: string) { return this.chat.close(businessId, id); }
 }
 
@@ -27,5 +27,5 @@ export class PublicStorefrontChatController {
   @Post('business/:businessId') start(@Param('businessId') businessId: string, @Body() dto: StartStorefrontChatDto) { return this.chat.start(businessId, dto); }
   @Get(':token') thread(@Param('token') token: string) { return this.chat.publicThread(token); }
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  @Post(':token/messages') send(@Param('token') token: string, @Body() dto: SendStorefrontChatDto) { return this.chat.sendCustomer(token, dto.body); }
+  @Post(':token/messages') send(@Param('token') token: string, @Body() dto: SendStorefrontChatDto) { return this.chat.sendCustomer(token, dto.body || '', dto.attachments || []); }
 }

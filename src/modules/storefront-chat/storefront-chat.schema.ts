@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { schemaOptions } from '../../common/schemas/schema-options';
 
+export interface StorefrontChatAttachment { url: string; type: 'image' | 'audio'; }
 export type StorefrontConversationDocument = HydratedDocument<StorefrontConversation>;
 export type StorefrontChatMessageDocument = HydratedDocument<StorefrontChatMessage>;
 
@@ -32,7 +33,8 @@ export class StorefrontChatMessage {
   @Prop({ type: String, required: true, index: true }) conversationId: string;
   @Prop({ type: String, enum: ['visitor', 'business'], required: true }) sender: 'visitor' | 'business';
   @Prop({ type: String, default: '' }) senderName: string;
-  @Prop({ type: String, required: true }) body: string;
+  @Prop({ type: String, default: '' }) body: string;
+  @Prop({ type: [Object], default: [] }) attachments: StorefrontChatAttachment[];
   @Prop({ type: Date, default: null }) readByAdminAt: Date | null;
   @Prop({ type: Date, default: null }) readByVisitorAt: Date | null;
 }

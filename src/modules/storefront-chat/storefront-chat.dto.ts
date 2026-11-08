@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEmail, IsIn, IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 export class StartStorefrontChatDto {
@@ -11,6 +11,12 @@ export class StartStorefrontChatDto {
   @ApiPropertyOptional() @IsString() @IsOptional() contextId?: string;
   @ApiPropertyOptional() @Transform(trim) @IsString() @IsOptional() @MaxLength(160) contextName?: string;
 }
+export class StorefrontChatAttachmentDto {
+  @ApiProperty() @IsUrl({ require_protocol: true }) url: string;
+  @ApiProperty({ enum: ['image', 'audio'] }) @IsIn(['image', 'audio']) type: 'image' | 'audio';
+}
+
 export class SendStorefrontChatDto {
-  @ApiProperty() @Transform(trim) @IsString() @MinLength(1) @MaxLength(3000) body: string;
+  @ApiPropertyOptional() @Transform(trim) @IsString() @IsOptional() @MaxLength(3000) body?: string;
+  @ApiPropertyOptional({ type: [StorefrontChatAttachmentDto] }) @IsArray() @ArrayMaxSize(3) @IsOptional() attachments?: StorefrontChatAttachmentDto[];
 }

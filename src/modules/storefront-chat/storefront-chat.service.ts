@@ -11,7 +11,7 @@ import { WhatsappClientService } from '../whatsapp/whatsapp-client.service';
 import { randomToken } from '../../common/utils/tokens';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
 import { sanitizeText, escapeHtml } from '../../common/utils/sanitize';
-import { StorefrontChatMessage, StorefrontChatMessageDocument, StorefrontConversation, StorefrontConversationDocument } from './storefront-chat.schema';
+import { StorefrontChatAttachment, StorefrontChatMessage, StorefrontChatMessageDocument, StorefrontConversation, StorefrontConversationDocument } from './storefront-chat.schema';
 import { StartStorefrontChatDto } from './storefront-chat.dto';
 
 @Injectable()
@@ -64,13 +64,15 @@ export class StorefrontChatService {
     return this.thread(conversation, 'visitor');
   }
 
-  async sendCustomer(token: string, body: string) {
+  async sendCustomer(token: string, body: string, attachments: StorefrontChatAttachment[] = []) {
     const conversation = await this.conversations.findOne({ publicToken: token }).exec();
     if (!conversation) throw new NotFoundException('Conversation not found.');
     if (conversation.status === 'closed') throw new BadRequestException('This conversation is closed.');
+    const clean = this.cleanAttachments(attachments);
+    if (!body.trim() && !clean.length) throw new BadRequestException('Write a message or attach an image or voice note.');
     const message = await this.messages.create({
       conversationId: String(conversation._id), sender: 'visitor', senderName: conversation.visitorName,
-      body: sanitizeText(body, 3000), readByVisitorAt: new Date(),
+      body: sanitizeText(body, 3000), attachments: clean, readByVisitorAt: new Date(),
     });
     conversation.unreadAdmin += 1;
     conversation.lastMessageAt = new Date();
@@ -96,14 +98,16 @@ export class StorefrontChatService {
     return this.thread(conversation, 'admin');
   }
 
-  async sendVendor(businessId: string, id: string, body: string) {
+  async sendVendor(businessId: string, id: string, body: string, attachments: StorefrontChatAttachment[] = []) {
     const conversation = await this.conversations.findOne({ _id: id, businessId }).exec();
     if (!conversation) throw new NotFoundException('Conversation not found.');
     if (conversation.status === 'closed') throw new BadRequestException('This conversation is closed.');
+    const clean = this.cleanAttachments(attachments);
+    if (!body.trim() && !clean.length) throw new BadRequestException('Write a message or attach an image or voice note.');
     const business = await this.businesses.findById(businessId).select('name').lean().exec();
     const message = await this.messages.create({
       conversationId: id, sender: 'business', senderName: business?.name || 'Business',
-      body: sanitizeText(body, 3000), readByAdminAt: new Date(),
+      body: sanitizeText(body, 3000), attachments: clean, readByAdminAt: new Date(),
     });
     conversation.unreadVisitor += 1;
     conversation.lastMessageAt = new Date();
@@ -132,14 +136,19 @@ export class StorefrontChatService {
     const user = owner ? await this.users.findById(owner.userId).lean().exec() : null;
     const link = `${process.env.APP_URL || 'https://ojaly.org'}/app/inquiries?thread=${conversation._id.toString()}`;
     const context = conversation.contextName ? ` about ${conversation.contextName}` : '';
-    const text = `💬 New Ojaly customer message\n\n${conversation.visitorName}${context}:\n"${message.body.slice(0, 240)}"\n\nOpen and reply in Ojaly:\n${link}`;
+    const preview = message.body || 'Sent an image or voice note.';
+    const text = `💬 New Ojaly customer message\n\n${conversation.visitorName}${context}:\n"${preview.slice(0, 240)}"\n\nOpen and reply in Ojaly:\n${link}`;
     const phone = user?.phone || business.whatsappNumber || business.publicPhone;
     if (phone) await this.whatsapp.sendTextDirect(conversation.businessId, phone, text).catch(() => undefined);
     const email = business.email || user?.email;
     if (email) await this.mail.send({
       to: email, subject: `New customer message · ${business.name}`, template: 'storefront_chat', businessId: conversation.businessId,
-      html: `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:24px"><h2>New customer message</h2><p><strong>${escapeHtml(conversation.visitorName)}</strong>${escapeHtml(context)} sent a message:</p><blockquote style="border-left:3px solid #FF5A1F;padding-left:12px;color:#334">${escapeHtml(message.body.slice(0, 800))}</blockquote><p><a href="${link}" style="display:inline-block;background:#06231A;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none">Open chat in Ojaly</a></p><p style="color:#66756b;font-size:12px">Reply inside Ojaly so the conversation stays with the customer and their order.</p></div>`,
+      html: `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:24px"><h2>New customer message</h2><p><strong>${escapeHtml(conversation.visitorName)}</strong>${escapeHtml(context)} sent a message:</p><blockquote style="border-left:3px solid #FF5A1F;padding-left:12px;color:#334">${escapeHtml(preview.slice(0, 800))}</blockquote><p><a href="${link}" style="display:inline-block;background:#06231A;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none">Open chat in Ojaly</a></p><p style="color:#66756b;font-size:12px">Reply inside Ojaly so the conversation stays with the customer and their order.</p></div>`,
     }).catch(() => undefined);
+  }
+
+  private cleanAttachments(attachments: StorefrontChatAttachment[] = []) {
+    return attachments.slice(0, 3).filter((a) => (a.type === 'image' || a.type === 'audio') && /^https?:\/\//.test(a.url));
   }
 
   private viewConversation(conversation: StorefrontConversation | (StorefrontConversation & { _id: unknown })) {
@@ -155,7 +164,7 @@ export class StorefrontChatService {
   private viewMessage(message: StorefrontChatMessage | (StorefrontChatMessage & { _id: unknown }), role: 'visitor' | 'admin' = 'admin') {
     return {
       id: String((message as { _id: unknown })._id), sender: message.sender, senderName: message.senderName,
-      body: message.body, createdAt: (message as { createdAt?: Date }).createdAt,
+      body: message.body, attachments: message.attachments || [], createdAt: (message as { createdAt?: Date }).createdAt,
       seen: role === 'admin' ? Boolean(message.readByAdminAt) : Boolean(message.readByVisitorAt),
     };
   }
