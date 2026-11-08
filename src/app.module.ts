@@ -35,6 +35,7 @@ import { SaleMessagesModule } from './modules/sale-messages/sale-messages.module
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { SupportModule } from './modules/support/support.module';
+import { StorefrontChatModule } from './modules/storefront-chat/storefront-chat.module';
 import { StockModule } from './modules/stock/stock.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { SalesModule } from './modules/sales/sales.module';
@@ -110,6 +111,7 @@ import { JwtModule } from '@nestjs/jwt';
     PayrollModule,
     PromotionsModule,
     SupportModule,
+    StorefrontChatModule,
     StockModule,
     CustomersModule,
     DebtsModule,

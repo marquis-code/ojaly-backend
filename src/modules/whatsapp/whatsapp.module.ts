@@ -5,6 +5,7 @@ import { WhatsappSettingsController } from './whatsapp-settings.controller';
 import { PasteChatController } from './paste-chat.controller';
 import { BotService } from './bot.service';
 import { ChatParserService } from './chat-parser.service';
+import { WhatsappClientService } from './whatsapp-client.service';
 import { LlmParserService } from './llm-parser.service';
 import { WhatsappOtp, WhatsappOtpSchema } from './whatsapp-otp.schema';
 import { WhatsappContact, WhatsappContactSchema } from './whatsapp-contact.schema';
@@ -44,6 +45,6 @@ import { ExpensesModule } from '../expenses/expenses.module';
   ],
   controllers: [WhatsappWebhookController, WhatsappSettingsController, PasteChatController],
   providers: [BotService, ChatParserService, LlmParserService],
-  exports: [ChatParserService],
+  exports: [ChatParserService, WhatsappClientService],
 })
 export class WhatsappModule {}
