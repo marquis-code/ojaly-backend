@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Business, BusinessSchema } from '../businesses/business.schema';
 import { Customer, CustomerSchema } from '../customers/customer.schema';
@@ -18,7 +18,7 @@ import { PackagePurchase, PackagePurchaseSchema, ServicePackage, ServicePackageS
       { name: Business.name, schema: BusinessSchema },
       { name: Customer.name, schema: CustomerSchema },
     ]),
-    PaymentsModule,
+    forwardRef(() => PaymentsModule),
     NotificationsModule,
   ],
   controllers: [PackagesController],

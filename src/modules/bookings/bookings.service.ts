@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
@@ -91,7 +91,7 @@ export class BookingsService implements OnModuleInit {
     private readonly whatsapp: WhatsappClientService,
     private readonly promotions: PromotionsService,
     private readonly risk: RiskService,
-    private readonly payments: PaymentsService,
+    @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
     private readonly packages: PackagesService,
     private readonly calendarSync: CalendarService,
     private readonly config: ConfigService,
