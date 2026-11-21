@@ -5,6 +5,7 @@ import { Business, BusinessDocument } from '../businesses/business.schema';
 import { Provider, ProviderDocument } from '../providers/provider.schema';
 import { Service, ServiceDocument } from '../services/service.schema';
 import { Booking, BookingDocument } from './booking.schema';
+import { Payment, PaymentDocument } from '../payments/payment.schema';
 import { CalendarService } from '../calendar/calendar.service';
 import {
   addMinutes, businessDefaultSchedule, isValidLocalDate, localDateKey, minutesFromTime,
@@ -25,6 +26,7 @@ export class AvailabilityService {
     @InjectModel(Service.name) private readonly services: Model<ServiceDocument>,
     @InjectModel(Provider.name) private readonly providers: Model<ProviderDocument>,
     @InjectModel(Booking.name) private readonly bookings: Model<BookingDocument>,
+    @InjectModel(Payment.name) private readonly payments: Model<PaymentDocument>,
     private readonly calendarSync: CalendarService,
   ) {}
 
@@ -64,13 +66,44 @@ export class AvailabilityService {
     const minStart = Math.max(now.getTime() + (settings.leadTimeMinutes || 0) * 60000, dayStart.getTime());
     const duration = (durationOverride || service.durationMinutes) + (service.bufferBeforeMinutes || 0) + (service.bufferAfterMinutes || 0);
 
-    const existing = await this.bookings.find({
+    const nowMs = now.getTime();
+    const rawExisting = await this.bookings.find({
       businessId,
       providerId: { $in: allProviders.map((p) => String(p._id)) },
       status: { $in: ['pending', 'confirmed'] },
       blockStartAt: { $lt: dayEnd },
       blockEndAt: { $gt: dayStart },
     }).lean().exec();
+    const existing: Array<{ providerId: string; blockStartAt: Date; blockEndAt: Date }> = rawExisting.filter((b) => {
+      if (b.status === 'pending' && b.paymentStatus === 'unpaid' && ['storefront', 'marketplace'].includes(b.source)) {
+        if (b.paymentExpiresAt && new Date(b.paymentExpiresAt).getTime() < nowMs) return false;
+        if (!b.paymentExpiresAt && (b.createdAt ? new Date(b.createdAt).getTime() + 15 * 60 * 1000 < nowMs : false)) return false;
+      }
+      return true;
+    }).map((b) => ({ providerId: String(b.providerId), blockStartAt: new Date(b.blockStartAt), blockEndAt: new Date(b.blockEndAt) }));
+
+    const pendingCheckouts = await this.payments.find({
+      businessId,
+      purpose: 'booking',
+      status: 'pending',
+      createdAt: { $gt: new Date(nowMs - 15 * 60 * 1000) },
+    }).lean().exec();
+
+    for (const checkout of pendingCheckouts) {
+      const draft = (checkout.metadata as Record<string, any>)?.bookingDraft;
+      if (!draft?.providerId || !draft?.startAt) continue;
+      const draftStartAt = new Date(draft.startAt);
+      const draftDuration = Number(draft.durationMinutes || service.durationMinutes);
+      const draftBlockStart = addMinutes(draftStartAt, -(service.bufferBeforeMinutes || 0));
+      const draftBlockEnd = addMinutes(addMinutes(draftStartAt, draftDuration), service.bufferAfterMinutes || 0);
+      if (draftBlockStart < dayEnd && draftBlockEnd > dayStart) {
+        existing.push({
+          providerId: String(draft.providerId),
+          blockStartAt: draftBlockStart,
+          blockEndAt: draftBlockEnd,
+        });
+      }
+    }
 
     const externalBusy = await this.calendarSync.busyForDay(businessId, dayStart, dayEnd).catch(() => []);
     const slots = new Map<string, { startAt: string; endAt: string; time: string; providers: SlotProvider[] }>();

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Business, BusinessSchema } from '../businesses/business.schema';
 import { Customer, CustomerSchema } from '../customers/customer.schema';
@@ -15,6 +15,7 @@ import { Service, ServiceSchema } from '../services/service.schema';
 import { ServicesModule } from '../services/services.module';
 import { WaitlistModule } from '../waitlist/waitlist.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { Payment, PaymentSchema } from '../payments/payment.schema';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { RiskModule } from '../risk/risk.module';
 import { PackagesModule } from '../packages/packages.module';
@@ -36,11 +37,12 @@ import { AvailabilityService } from './availability.service';
       { name: Sale.name, schema: SaleSchema },
       { name: Counter.name, schema: CounterSchema },
       { name: Debt.name, schema: DebtSchema },
+      { name: Payment.name, schema: PaymentSchema },
     ]),
     ProvidersModule,
     ServicesModule,
     WaitlistModule,
-    PaymentsModule,
+    forwardRef(() => PaymentsModule),
     PromotionsModule,
     RiskModule,
     PackagesModule,

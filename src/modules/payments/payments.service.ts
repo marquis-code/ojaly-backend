@@ -2,6 +2,8 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -27,6 +29,7 @@ import { Sale, SaleDocument } from '../sales/sale.schema';
 import { Counter, CounterDocument } from '../plans/counter.schema';
 import { Customer, CustomerDocument } from '../customers/customer.schema';
 import { ReceiptsService } from '../receipts/receipts.service';
+import { BookingsService } from '../bookings/bookings.service';
 import { nextSequence } from '../../common/utils/order-number';
 import { PlansService } from '../plans/plans.service';
 import { OrdersService } from '../orders/orders.service';
@@ -77,6 +80,7 @@ export class PaymentsService {
     private readonly plans: PlansService,
     private readonly ordersService: OrdersService,
     private readonly debtsService: DebtsService,
+    @Inject(forwardRef(() => BookingsService)) private readonly bookingsService: BookingsService,
     private readonly audit: AuditService,
     private readonly affiliates: AffiliatesService,
     private readonly config: ConfigService,
@@ -196,6 +200,46 @@ export class PaymentsService {
     return { reference, authorizationUrl: initialized.authorizationUrl, amountKobo, publicKey: this.paystack.publicKey };
   }
 
+  async initializeStorefrontBookingPayment(
+    businessId: string,
+    customerEmail: string,
+    amountKobo: number,
+    bookingDraft: Record<string, unknown>,
+  ) {
+    const email = await this.resolveEmail(businessId, customerEmail);
+    const reference = this.reference('bkg');
+    const initialized = await this.paystack.initialize({
+      email,
+      amountKobo,
+      reference,
+      callbackUrl: `${this.config.get('appUrl')}/payment/callback`,
+      metadata: {
+        purpose: 'booking',
+        businessId,
+        customerName: (bookingDraft.customerName as string) || 'Customer',
+        customerPhone: (bookingDraft.customerPhone as string) || '',
+        bookingDraft,
+      },
+    });
+    await this.payments.create({
+      reference,
+      businessId,
+      purpose: 'booking',
+      bookingId: null,
+      amountKobo,
+      email,
+      status: 'pending',
+      authorizationUrl: initialized.authorizationUrl,
+      accessCode: initialized.accessCode,
+      createdBy: null,
+      metadata: {
+        bookingDraft,
+        customerName: (bookingDraft.customerName as string) || 'Customer',
+      },
+    });
+    return { reference, authorizationUrl: initialized.authorizationUrl, amountKobo, publicKey: this.paystack.publicKey };
+  }
+
   async refundBooking(businessId: string, bookingId: string, amountKobo?: number) {
     const booking = await this.bookings.findOne({ _id: bookingId, businessId }).exec();
     if (!booking) throw new NotFoundException('Booking not found.');
@@ -244,6 +288,9 @@ export class PaymentsService {
     const booking = await this.bookings.findOne({ publicToken: token }).lean().exec();
     if (!booking) throw new NotFoundException('Booking not found.');
     if (booking.status === 'cancelled') throw new BadRequestException('This booking was cancelled.');
+    if (booking.status === 'pending' && booking.paymentExpiresAt && new Date(booking.paymentExpiresAt).getTime() < Date.now()) {
+      throw new BadRequestException('The checkout window for this appointment has expired. Please select a time and book again.');
+    }
     if (booking.amountPaidKobo >= booking.priceKobo) throw new BadRequestException('This booking is already paid.');
     const outstanding = booking.priceKobo - booking.amountPaidKobo;
     const depositOutstanding = booking.depositKobo - booking.amountPaidKobo;
@@ -656,16 +703,19 @@ export class PaymentsService {
           if (purchase.customerId) await this.customers.updateOne({ _id: purchase.customerId, businessId: purchase.businessId }, { $inc: { totalSpentKobo: purchase.priceKobo, orderCount: 1 }, $set: { lastPurchaseAt: new Date() } }).exec();
           await this.receipts.createForSale(sale, true).catch(() => undefined);
         }
-      } else if (claimed.purpose === 'booking' && claimed.bookingId) {
-        const booking = await this.bookings.findOne({ _id: claimed.bookingId, businessId: claimed.businessId }).exec();
-        if (!booking) throw new NotFoundException('Booking not found.');
-        if (booking.status === 'cancelled') throw new BadRequestException('This booking was cancelled.');
-        booking.amountPaidKobo = Math.min(booking.priceKobo, booking.amountPaidKobo + claimed.amountKobo);
-        booking.paymentStatus = booking.amountPaidKobo >= booking.priceKobo ? 'paid' : 'deposit_paid';
-        booking.paymentReference = claimed.reference;
-        if (booking.status === 'pending') booking.status = 'confirmed';
-        booking.history.push({ status: 'payment', at: new Date(), by: 'paystack', note: `${claimed.amountKobo} kobo received` });
-        await booking.save();
+      } else if (claimed.purpose === 'booking') {
+        if (claimed.bookingId) {
+          await this.bookingsService.recordPayment(claimed.bookingId, claimed.amountKobo, claimed.reference);
+        } else if ((claimed.metadata as Record<string, any>)?.bookingDraft) {
+          const booking = await this.bookingsService.createFromPaidCheckout(
+            claimed.businessId,
+            (claimed.metadata as Record<string, any>).bookingDraft,
+            claimed.amountKobo,
+            claimed.reference,
+          );
+          claimed.bookingId = booking._id.toString();
+          await this.payments.updateOne({ _id: claimed._id }, { $set: { bookingId: booking._id.toString() } }).exec();
+        }
       } else if (claimed.purpose === 'subscription') {
         const metadata = claimed.metadata || {};
         const planKey = String(metadata.planKey || '');

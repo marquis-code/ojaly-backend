@@ -68,7 +68,12 @@ export class CreateBookingDto {
   addOnNames?: string[];
 }
 
-export class CreatePublicBookingDto extends CreateBookingDto {}
+export class CreatePublicBookingDto extends CreateBookingDto {
+  @ApiProperty({ description: 'Customer email required for online payment receipt and booking confirmation' })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : value))
+  @IsEmail()
+  declare customerEmail: string;
+}
 
 export class CreateRecurringBookingDto extends CreateBookingDto {
   @ApiProperty({ enum: ['weekly', 'biweekly', 'monthly'] })

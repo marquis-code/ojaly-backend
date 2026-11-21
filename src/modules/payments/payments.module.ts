@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
@@ -22,6 +22,7 @@ import { ReceiptsModule } from '../receipts/receipts.module';
 import { OrdersModule } from '../orders/orders.module';
 import { DebtsModule } from '../debts/debts.module';
 import { AffiliatesModule } from '../affiliates/affiliates.module';
+import { BookingsModule } from '../bookings/bookings.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AffiliatesModule } from '../affiliates/affiliates.module';
     DebtsModule,
     AffiliatesModule,
     ReceiptsModule,
+    forwardRef(() => BookingsModule),
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, PaystackService],

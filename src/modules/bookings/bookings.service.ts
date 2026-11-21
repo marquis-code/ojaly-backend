@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, FilterQuery, Model } from 'mongoose';
@@ -38,8 +38,38 @@ import {
 } from './booking.dto';
 
 @Injectable()
-export class BookingsService {
+export class BookingsService implements OnModuleInit {
   private readonly logger = new Logger(BookingsService.name);
+
+  async onModuleInit() {
+    try {
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
+      const res = await this.bookings.updateMany(
+        {
+          status: 'pending',
+          paymentStatus: 'unpaid',
+          source: { $in: ['storefront', 'marketplace'] },
+          $or: [
+            { paymentExpiresAt: { $lt: now } },
+            { paymentExpiresAt: null, createdAt: { $lt: cutoff } },
+          ],
+        },
+        {
+          $set: {
+            status: 'cancelled',
+            cancelledAt: now,
+            cancellationReason: 'Payment not completed within checkout window',
+          },
+        },
+      ).exec();
+      if (res.modifiedCount > 0) {
+        this.logger.log(`Pruned ${res.modifiedCount} stale unpaid booking(s) on startup`);
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   constructor(
     @InjectModel(Booking.name) private readonly bookings: Model<BookingDocument>,
@@ -70,8 +100,35 @@ export class BookingsService {
   async list(businessId: string, query: BookingQueryDto) {
     const business = await this.businesses.findById(businessId).lean().exec();
     if (!business) throw new NotFoundException('Business not found.');
+
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
+    await this.bookings.updateMany(
+      {
+        businessId,
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        source: { $in: ['storefront', 'marketplace'] },
+        $or: [
+          { paymentExpiresAt: { $lt: now } },
+          { paymentExpiresAt: null, createdAt: { $lt: cutoff } },
+        ],
+      },
+      {
+        $set: {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancellationReason: 'Payment not completed within checkout window',
+        },
+      },
+    ).exec().catch(() => undefined);
+
     const filter: FilterQuery<BookingDocument> = { businessId };
-    if (query.status && query.status !== 'all') filter.status = query.status;
+    if (query.status && query.status !== 'all') {
+      filter.status = query.status;
+    } else {
+      filter.$nor = [{ status: 'pending', paymentStatus: 'unpaid', source: { $in: ['storefront', 'marketplace'] } }];
+    }
     if (query.providerId) filter.providerId = query.providerId;
     if (query.serviceId) filter.serviceId = query.serviceId;
     if (query.search) {
@@ -96,9 +153,23 @@ export class BookingsService {
     const todayStart = new Date(`${today}T00:00:00+01:00`);
     const todayEnd = new Date(`${today}T23:59:59+01:00`);
     const [todayCount, upcomingCount, pendingCount] = await Promise.all([
-      this.bookings.countDocuments({ businessId, startAt: { $gte: todayStart, $lte: todayEnd }, status: { $nin: ['cancelled'] } }).exec(),
-      this.bookings.countDocuments({ businessId, startAt: { $gte: new Date() }, status: { $in: ['pending', 'confirmed'] } }).exec(),
-      this.bookings.countDocuments({ businessId, status: 'pending' }).exec(),
+      this.bookings.countDocuments({
+        businessId,
+        startAt: { $gte: todayStart, $lte: todayEnd },
+        status: { $nin: ['cancelled'] },
+        $nor: [{ status: 'pending', paymentStatus: 'unpaid', source: { $in: ['storefront', 'marketplace'] } }],
+      }).exec(),
+      this.bookings.countDocuments({
+        businessId,
+        startAt: { $gte: new Date() },
+        status: { $in: ['pending', 'confirmed'] },
+        $nor: [{ status: 'pending', paymentStatus: 'unpaid', source: { $in: ['storefront', 'marketplace'] } }],
+      }).exec(),
+      this.bookings.countDocuments({
+        businessId,
+        status: 'pending',
+        $nor: [{ paymentStatus: 'unpaid', source: { $in: ['storefront', 'marketplace'] } }],
+      }).exec(),
     ]);
     return {
       items: items.map((b) => ({ ...this.view(b), providerFeeKobo: b.providerFeeKobo || 0, providerNetKobo: b.providerNetKobo || 0 })),
@@ -234,6 +305,7 @@ export class BookingsService {
     const chargeKobo = packageRedemption ? 0 : totalKobo;
     const marketplaceFeePercent = marketplaceCampus ? (business.marketplaceFeePercent ?? 5) : 0;
     const marketplaceFeeKobo = marketplaceCampus ? Math.round((chargeKobo * marketplaceFeePercent) / 100) : 0;
+    const isPublicOnline = ['storefront', 'marketplace'].includes(effectiveSource);
     const depositPercent = business.bookingSettings?.depositPercent || 0;
     const baseDeposit = packageRedemption ? 0 : overrides?.depositKobo !== undefined
       ? Math.min(discountedSubtotalKobo, Math.max(0, overrides.depositKobo))
@@ -241,8 +313,13 @@ export class BookingsService {
         ? Math.min(discountedSubtotalKobo, service.depositKobo || Math.round((discountedSubtotalKobo * depositPercent) / 100))
         : 0;
     const collectFull = business.bookingSettings?.paymentCollection === 'full';
-    const depositKobo = packageRedemption ? 0 : collectFull ? totalKobo : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
-    const shouldConfirm = packageRedemption ? true : Boolean(business.bookingSettings?.autoConfirm) && depositKobo <= 0;
+    let depositKobo = packageRedemption ? 0 : collectFull ? totalKobo : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
+    if (isPublicOnline && !packageRedemption && chargeKobo > 0 && depositKobo <= 0) {
+      depositKobo = totalKobo;
+    }
+    const requiresPayment = !packageRedemption && chargeKobo > 0 && depositKobo > 0;
+    const shouldConfirm = packageRedemption ? true : !isPublicOnline && Boolean(business.bookingSettings?.autoConfirm) && depositKobo <= 0;
+    const paymentExpiresAt = isPublicOnline && requiresPayment ? new Date(Date.now() + 15 * 60 * 1000) : null;
     const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
     const endAt = addMinutes(startAt, durationMinutes);
     const blockEndAt = addMinutes(endAt, service.bufferAfterMinutes || 0);
@@ -252,13 +329,21 @@ export class BookingsService {
     let customerId: string | null = null;
     try {
       await session.withTransaction(async () => {
-        const conflict = await this.bookings.find({
+        const nowMs = Date.now();
+        const rawConflict = await this.bookings.find({
           businessId,
           providerId: String(provider._id),
           status: { $in: ['pending', 'confirmed'] },
           blockStartAt: { $lt: blockEndAt },
           blockEndAt: { $gt: blockStartAt },
         }).session(session).lean().exec();
+        const conflict = rawConflict.filter((b) => {
+          if (b.status === 'pending' && b.paymentStatus === 'unpaid' && ['storefront', 'marketplace'].includes(b.source)) {
+            if (b.paymentExpiresAt && new Date(b.paymentExpiresAt).getTime() < nowMs) return false;
+            if (!b.paymentExpiresAt && (b.createdAt ? new Date(b.createdAt).getTime() + 15 * 60 * 1000 < nowMs : false)) return false;
+          }
+          return true;
+        });
         if (conflict.length >= Math.max(1, service.maxBookingsPerSlot || 1)) {
           throw new ConflictException('That time was just taken. Please choose another slot.');
         }
@@ -330,6 +415,7 @@ export class BookingsService {
           amountPaidKobo: 0,
           paymentStatus: packageRedemption ? 'paid' : 'unpaid',
           paymentReference: packageRedemption ? `package:${packageRedemption.redemptionCode}` : null,
+          paymentExpiresAt,
           seriesId: series?.id || null,
           seriesIndex: series?.index || 0,
           seriesTotal: series?.total || 1,
@@ -350,17 +436,78 @@ export class BookingsService {
         throw new BadRequestException('The package could not be redeemed. No session was used.');
       }
     }
-    if (notify) await this.notifications.create({
-      businessId,
-      type: 'booking',
-      title: `New booking · ${created.bookingNumber}`,
-      message: `${created.customerName} booked ${created.serviceName} with ${created.providerName}.`,
-      tone: 'success',
-      data: { bookingId: created._id.toString(), startAt: created.startAt.toISOString() },
-    });
-    if (notify) await this.sendConfirmation(created, business as unknown as BusinessDocument).catch(() => undefined);
-    void this.calendarSync.pushBooking(created).catch(() => undefined);
+    if (notify && created.status === 'confirmed') {
+      await this.notifications.create({
+        businessId,
+        type: 'booking',
+        title: `New booking · ${created.bookingNumber}`,
+        message: `${created.customerName} booked ${created.serviceName} with ${created.providerName}.`,
+        tone: 'success',
+        data: { bookingId: created._id.toString(), startAt: created.startAt.toISOString(), publicToken: created.publicToken },
+      });
+      await this.sendConfirmation(created, business as unknown as BusinessDocument).catch(() => undefined);
+      void this.calendarSync.pushBooking(created).catch(() => undefined);
+    }
     return this.view(created);
+  }
+
+  async recordPayment(bookingId: string, amountKobo: number, paymentReference: string): Promise<BookingDocument> {
+    const booking = await this.bookings.findById(bookingId).exec();
+    if (!booking) throw new NotFoundException('Booking not found.');
+    if (booking.status === 'cancelled') throw new BadRequestException('This booking was cancelled.');
+
+    booking.amountPaidKobo = Math.min(booking.priceKobo, (booking.amountPaidKobo || 0) + amountKobo);
+    booking.paymentStatus = booking.amountPaidKobo >= booking.priceKobo ? 'paid' : 'deposit_paid';
+    booking.paymentReference = paymentReference;
+    booking.paymentExpiresAt = null;
+    booking.status = 'confirmed';
+    booking.history.push({
+      status: 'confirmed',
+      at: new Date(),
+      by: 'paystack',
+      note: `Payment of ${formatNaira(amountKobo)} received. Booking confirmed.`,
+    });
+    await booking.save();
+
+    if (booking.customerId) {
+      await this.customers.updateOne(
+        { _id: booking.customerId, businessId: booking.businessId },
+        { $inc: { totalSpentKobo: amountKobo }, $set: { lastPurchaseAt: new Date() } },
+      ).exec().catch(() => undefined);
+    }
+
+    const business = await this.businesses.findById(booking.businessId).lean().exec();
+    if (business) {
+      await this.notifications.create({
+        businessId: booking.businessId,
+        type: 'booking',
+        title: `Payment received · ${booking.bookingNumber}`,
+        message: `${booking.customerName} booked ${booking.serviceName} with ${booking.providerName} (Paid ${formatNaira(amountKobo)}).`,
+        tone: 'success',
+        data: { bookingId: booking._id.toString(), startAt: booking.startAt ? new Date(booking.startAt).toISOString() : '', publicToken: booking.publicToken },
+      }).catch(() => undefined);
+
+      await this.sendConfirmation(booking, business as unknown as BusinessDocument).catch(() => undefined);
+      void this.calendarSync.pushBooking(booking).catch(() => undefined);
+    }
+
+    return booking;
+  }
+
+  async cancelUnpaidBooking(bookingId: string, reason = 'Payment not completed') {
+    return this.bookings.updateOne(
+      { _id: bookingId, paymentStatus: 'unpaid', status: 'pending' },
+      {
+        $set: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+        },
+        $push: {
+          history: { status: 'cancelled', at: new Date(), by: 'system', note: reason },
+        },
+      },
+    ).exec();
   }
 
   async createRecurring(userId: string, businessId: string, dto: CreateRecurringBookingDto) {
@@ -397,6 +544,251 @@ export class BookingsService {
 
   async createPublic(businessId: string, dto: CreateBookingDto) {
     return this.create(null as unknown as string, businessId, dto, 'storefront');
+  }
+
+  async quotePublic(businessId: string, dto: CreateBookingDto) {
+    const [business, service] = await Promise.all([
+      this.businesses.findById(businessId).lean().exec(),
+      this.services.findOne({ _id: dto.serviceId, businessId, isActive: true }).lean().exec(),
+    ]);
+    if (!business) throw new NotFoundException('Business not found.');
+    if (!service) throw new NotFoundException('Service not found.');
+    const phone = normalizeNigerianPhone(dto.customerPhone);
+    if (!phone) throw new BadRequestException('Enter a valid Nigerian phone number.');
+    if (!this.normalDate(dto.startAt)) throw new BadRequestException('Choose a valid start time.');
+    const startAt = new Date(dto.startAt);
+    const configuredLocations = business.bookingSettings?.locations || [];
+    const location = dto.location ? sanitizeText(dto.location, 100) : '';
+    if (location && configuredLocations.length && !configuredLocations.includes(location)) {
+      throw new BadRequestException('Choose one of the available booking locations.');
+    }
+    const provider = await this.resolveProvider(businessId, service, dto.providerId);
+    const addOns = this.selectedAddOns(service, dto.addOnNames || []);
+    const packageRedemption = dto.packageCode ? await this.packages.validateRedemption(businessId, dto.packageCode, service._id.toString(), phone) : null;
+    const marketplaceCampus = dto.marketplaceCampus ? { code: dto.marketplaceCampus.trim().toUpperCase() } : null;
+    const effectiveSource = marketplaceCampus ? 'marketplace' : 'storefront';
+    if (!location && configuredLocations.length) throw new BadRequestException('Choose a booking location.');
+
+    const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+    const durationMinutes = service.durationMinutes + addonMinutes;
+    const timezone = business.timezone || 'Africa/Lagos';
+    await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes);
+
+    const subtotalKobo = service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+    const promotion = packageRedemption
+      ? null
+      : (await this.promotions.platformDiscount(subtotalKobo).catch(() => null)) || await this.promotions.newCustomerDiscount({
+          customerPhone: phone, customerEmail: dto.customerEmail || null, subtotalKobo,
+        }).catch(() => null);
+    const discountKobo = promotion?.discountKobo || 0;
+    const discountedSubtotalKobo = Math.max(0, subtotalKobo - discountKobo);
+
+    let serviceChargeKobo = 0;
+    const serviceChargePercent = business.serviceChargePercent || 0;
+    if (business.serviceChargeEnabled) {
+      if (business.serviceChargeType === 'fixed') {
+        serviceChargeKobo = business.serviceChargeFixedKobo || 0;
+      } else {
+        serviceChargeKobo = Math.round((discountedSubtotalKobo * serviceChargePercent) / 100);
+      }
+    }
+
+    let providerFeeKobo = 0;
+    const providerFeePercent = business.providerFeePercent || 0;
+    if (business.providerFeeEnabled && discountedSubtotalKobo > 0) {
+      if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(discountedSubtotalKobo, business.providerFeeFixedKobo || 0);
+      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * providerFeePercent) / 100));
+    }
+    const providerNetKobo = Math.max(0, discountedSubtotalKobo - providerFeeKobo);
+    const totalKobo = discountedSubtotalKobo + serviceChargeKobo;
+    const chargeKobo = packageRedemption ? 0 : totalKobo;
+    const marketplaceFeePercent = marketplaceCampus ? (business.marketplaceFeePercent ?? 5) : 0;
+    const marketplaceFeeKobo = marketplaceCampus ? Math.round((chargeKobo * marketplaceFeePercent) / 100) : 0;
+
+    const depositPercent = business.bookingSettings?.depositPercent || 0;
+    const baseDeposit = packageRedemption ? 0
+      : service.requiresDeposit
+        ? Math.min(discountedSubtotalKobo, service.depositKobo || Math.round((discountedSubtotalKobo * depositPercent) / 100))
+        : 0;
+    const collectFull = business.bookingSettings?.paymentCollection === 'full';
+    let depositKobo = packageRedemption ? 0 : collectFull ? totalKobo : baseDeposit > 0 ? baseDeposit + serviceChargeKobo : 0;
+    if (!packageRedemption && chargeKobo > 0 && depositKobo <= 0) {
+      depositKobo = totalKobo;
+    }
+    const requiredKobo = depositKobo;
+
+    return {
+      business,
+      service,
+      provider,
+      addOns,
+      phone,
+      startAt,
+      durationMinutes,
+      timezone,
+      location,
+      subtotalKobo,
+      discountKobo,
+      promotion,
+      serviceChargeKobo,
+      serviceChargePercent,
+      providerFeeKobo,
+      providerFeePercent,
+      providerNetKobo,
+      totalKobo,
+      depositKobo,
+      requiredKobo,
+      marketplaceCampus,
+      marketplaceFeePercent,
+      marketplaceFeeKobo,
+      packageRedemption,
+      effectiveSource,
+    };
+  }
+
+  async createFromPaidCheckout(
+    businessId: string,
+    draft: Record<string, any>,
+    amountPaidKobo: number,
+    paymentReference: string,
+  ): Promise<BookingDocument> {
+    const existing = await this.bookings.findOne({ businessId, paymentReference }).exec();
+    if (existing) return existing;
+
+    const [business, service] = await Promise.all([
+      this.businesses.findById(businessId).lean().exec(),
+      this.services.findOne({ _id: draft.serviceId, businessId }).lean().exec(),
+    ]);
+    if (!business) throw new NotFoundException('Business not found.');
+    if (!service) throw new NotFoundException('Service not found.');
+
+    const phone = normalizeNigerianPhone(draft.customerPhone) || draft.customerPhone;
+    const startAt = new Date(draft.startAt);
+    const durationMinutes = Number(draft.durationMinutes || service.durationMinutes);
+    const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
+    const endAt = addMinutes(startAt, durationMinutes);
+    const blockEndAt = addMinutes(endAt, service.bufferAfterMinutes || 0);
+    const timezone = business.timezone || 'Africa/Lagos';
+
+    const session = await this.connection.startSession();
+    let created!: BookingDocument;
+    try {
+      await session.withTransaction(async () => {
+        let customer = await this.customers.findOne({ businessId, phone }).session(session).exec();
+        if (!customer) {
+          const [newCustomer] = await this.customers.create([{
+            businessId,
+            name: sanitizeText(draft.customerName, 100) || 'Customer',
+            phone,
+            email: draft.customerEmail || null,
+            totalSpentKobo: amountPaidKobo,
+            outstandingKobo: 0,
+            lastPurchaseAt: new Date(),
+          }], { session });
+          customer = newCustomer;
+        } else {
+          customer.totalSpentKobo = (customer.totalSpentKobo || 0) + amountPaidKobo;
+          customer.lastPurchaseAt = new Date();
+          if (draft.customerEmail && !customer.email) {
+            customer.email = draft.customerEmail;
+          }
+          await customer.save({ session });
+        }
+
+        const bookingNumber = await nextSequence(
+          this.counters as unknown as Model<Record<string, unknown>>,
+          businessId,
+          'booking',
+          'BKG',
+        );
+
+        const totalKobo = Number(draft.totalKobo || 0);
+        const depositKobo = Number(draft.depositKobo || 0);
+        const paymentStatus = amountPaidKobo >= totalKobo ? 'paid' : 'deposit_paid';
+
+        const [newBooking] = await this.bookings.create([{
+          businessId,
+          bookingNumber,
+          publicToken: randomToken(24),
+          serviceId: service._id.toString(),
+          serviceName: service.name,
+          serviceCategory: service.category,
+          serviceImageUrl: service.imageUrl || null,
+          providerId: String(draft.providerId),
+          providerName: draft.providerName || 'Staff',
+          providerAvatarUrl: draft.providerAvatarUrl || null,
+          providerColor: draft.providerColor || null,
+          customerId: customer._id.toString(),
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          customerEmail: customer.email,
+          startAt,
+          endAt,
+          blockStartAt,
+          blockEndAt,
+          durationMinutes,
+          capacity: service.maxBookingsPerSlot || 1,
+          bufferBeforeMinutes: service.bufferBeforeMinutes || 0,
+          bufferAfterMinutes: service.bufferAfterMinutes || 0,
+          timezone,
+          addOns: draft.addOns || [],
+          status: 'confirmed',
+          source: draft.effectiveSource || (draft.marketplaceCampus ? 'marketplace' : 'storefront'),
+          location: draft.location || '',
+          notes: sanitizeText(draft.notes, 2000),
+          subtotalKobo: Number(draft.subtotalKobo || 0),
+          serviceChargeKobo: Number(draft.serviceChargeKobo || 0),
+          serviceChargePercent: Number(draft.serviceChargePercent || 0),
+          discountKobo: Number(draft.discountKobo || 0),
+          promotionLabel: draft.promotionLabel || null,
+          providerFeeKobo: Number(draft.providerFeeKobo || 0),
+          providerFeePercent: Number(draft.providerFeePercent || 0),
+          providerNetKobo: Number(draft.providerNetKobo || 0),
+          priceKobo: totalKobo,
+          packageValueKobo: 0,
+          marketplaceCampus: draft.marketplaceCampus?.code || (typeof draft.marketplaceCampus === 'string' ? draft.marketplaceCampus : null),
+          marketplaceFeePercent: Number(draft.marketplaceFeePercent || 0),
+          marketplaceFeeKobo: Number(draft.marketplaceFeeKobo || 0),
+          customRequestId: null,
+          packagePurchaseId: null,
+          packageCode: null,
+          packageName: null,
+          depositKobo,
+          amountPaidKobo,
+          paymentStatus,
+          paymentReference,
+          paymentExpiresAt: null,
+          seriesId: null,
+          seriesIndex: 0,
+          seriesTotal: 1,
+          createdBy: null,
+          history: [{
+            status: 'confirmed',
+            at: new Date(),
+            by: 'paystack',
+            note: `Confirmed upon online payment of ${formatNaira(amountPaidKobo)} (ref: ${paymentReference})`,
+          }],
+        }], { session });
+
+        created = newBooking;
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    await this.notifications.create({
+      businessId,
+      type: 'booking',
+      title: `New booking · ${created.bookingNumber}`,
+      message: `${created.customerName} booked ${created.serviceName} with ${created.providerName} (Paid ${formatNaira(amountPaidKobo)}).`,
+      tone: 'success',
+      data: { bookingId: created._id.toString(), startAt: created.startAt.toISOString(), publicToken: created.publicToken },
+    }).catch(() => undefined);
+
+    await this.sendConfirmation(created, business as unknown as BusinessDocument).catch(() => undefined);
+    void this.calendarSync.pushBooking(created).catch(() => undefined);
+
+    return created;
   }
 
   async calendarFeedLink(businessId: string) {
@@ -649,19 +1041,6 @@ export class BookingsService {
         customerPhone: item.customerPhone, status: item.status, paymentStatus: item.paymentStatus,
       })),
     };
-  }
-
-  async recordPayment(bookingId: string, amountKobo: number, reference: string) {
-    const booking = await this.bookings.findById(bookingId).exec();
-    if (!booking) throw new NotFoundException('Booking not found.');
-    if (booking.status === 'cancelled') throw new BadRequestException('This booking was cancelled.');
-    booking.amountPaidKobo = Math.min(booking.priceKobo, booking.amountPaidKobo + amountKobo);
-    booking.paymentStatus = booking.amountPaidKobo >= booking.priceKobo ? 'paid' : 'deposit_paid';
-    booking.paymentReference = reference;
-    if (booking.status === 'pending') booking.status = 'confirmed';
-    booking.history.push({ status: 'payment', at: new Date(), by: 'paystack', note: `${amountKobo} kobo received` });
-    await booking.save();
-    return this.view(booking);
   }
 
   async complete(userId: string, businessId: string, id: string) {

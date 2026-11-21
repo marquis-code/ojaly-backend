@@ -26,7 +26,7 @@ import { normalizeNigerianPhone, waLink } from '../../common/utils/phone';
 import { sanitizeText } from '../../common/utils/sanitize';
 import { formatNaira } from '../../common/utils/money';
 import { StorefrontContactDto, StorefrontOrderDto, StorefrontProductQueryDto } from './dto/storefront.dto';
-import { CreateBookingDto } from '../bookings/booking.dto';
+import { CreateBookingDto, CreatePublicBookingDto } from '../bookings/booking.dto';
 
 @Injectable()
 export class StorefrontService {
@@ -140,28 +140,78 @@ export class StorefrontService {
     return { entry, business: this.publicBusiness(business) };
   }
 
-  async placeBooking(slug: string, dto: CreateBookingDto) {
+  async placeBooking(slug: string, dto: CreatePublicBookingDto) {
     const business = await this.requireBusiness({ slug: slug.toLowerCase() });
-    const booking = await this.bookings.createPublic(business._id.toString(), dto);
-    const sellerNumber = business.whatsappNumber || business.publicPhone;
-    const when = new Intl.DateTimeFormat('en-NG', {
-      timeZone: booking.timezone, weekday: 'short', day: 'numeric', month: 'short',
-      hour: 'numeric', minute: '2-digit',
-    }).format(new Date(booking.startAt));
-    const message = `Hello ${business.name}! I booked *${booking.serviceName}* with ${booking.providerName} on ${when}.\n\nReference: ${booking.bookingNumber}\nName: ${booking.customerName}\nPhone: ${booking.customerPhone}\n\nManage: ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
-    let payment: { authorizationUrl: string; reference: string; amountKobo: number } | null = null;
-    if (booking.depositKobo > 0 && booking.paymentStatus === 'unpaid') {
-      const email = booking.customerEmail || dto.customerEmail;
-      if (!email) throw new BadRequestException('Add your email to pay the booking deposit.');
-      const link = await this.payments.publicBookingDepositLink(booking.publicToken, email);
-      payment = { authorizationUrl: link.authorizationUrl, reference: link.reference, amountKobo: link.amountKobo };
+    const phone = normalizeNigerianPhone(dto.customerPhone);
+    if (!phone) throw new BadRequestException('Enter a valid Nigerian phone number.');
+
+    const quote = await this.bookings.quotePublic(business._id.toString(), dto);
+
+    // If covered by a prepaid package or completely free, create booking directly
+    if (quote.packageRedemption || quote.totalKobo === 0) {
+      const booking = await this.bookings.createPublic(business._id.toString(), dto);
+      const sellerNumber = business.whatsappNumber || business.publicPhone;
+      const when = new Intl.DateTimeFormat('en-NG', {
+        timeZone: booking.timezone, weekday: 'short', day: 'numeric', month: 'short',
+        hour: 'numeric', minute: '2-digit',
+      }).format(new Date(booking.startAt));
+      const message = `Hello ${business.name}! I booked *${booking.serviceName}* with ${booking.providerName} on ${when}.\n\nReference: ${booking.bookingNumber}\nName: ${booking.customerName}\nPhone: ${booking.customerPhone}\n\nManage: ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
+      return {
+        booking,
+        business: this.publicBusiness(business),
+        payment: null,
+        whatsappUrl: sellerNumber ? waLink(sellerNumber, message) : null,
+        whatsappMessage: message,
+      };
     }
+
+    // Payment is required. Under NO circumstance should a Booking record be created before payment!
+    if (!dto.customerEmail) {
+      throw new BadRequestException('Add your email to pay online and secure your booking.');
+    }
+
+    const draft = {
+      serviceId: quote.service._id.toString(),
+      providerId: String(quote.provider._id),
+      providerName: quote.provider.name,
+      providerAvatarUrl: quote.provider.avatarUrl || null,
+      providerColor: quote.provider.color || null,
+      startAt: quote.startAt.toISOString(),
+      durationMinutes: quote.durationMinutes,
+      customerName: sanitizeText(dto.customerName, 100),
+      customerPhone: quote.phone,
+      customerEmail: dto.customerEmail,
+      location: quote.location,
+      notes: sanitizeText(dto.notes, 2000),
+      addOns: quote.addOns,
+      marketplaceCampus: quote.marketplaceCampus,
+      effectiveSource: quote.effectiveSource,
+      subtotalKobo: quote.subtotalKobo,
+      discountKobo: quote.discountKobo,
+      promotionLabel: quote.promotion?.label || null,
+      serviceChargeKobo: quote.serviceChargeKobo,
+      serviceChargePercent: quote.serviceChargePercent,
+      providerFeeKobo: quote.providerFeeKobo,
+      providerFeePercent: quote.providerFeePercent,
+      providerNetKobo: quote.providerNetKobo,
+      totalKobo: quote.totalKobo,
+      depositKobo: quote.depositKobo,
+      requiredKobo: quote.requiredKobo,
+    };
+
+    const payment = await this.payments.initializeStorefrontBookingPayment(
+      business._id.toString(),
+      dto.customerEmail,
+      quote.requiredKobo,
+      draft,
+    );
+
     return {
-      booking,
+      booking: null,
       business: this.publicBusiness(business),
       payment,
-      whatsappUrl: sellerNumber ? waLink(sellerNumber, message) : null,
-      whatsappMessage: message,
+      whatsappUrl: null,
+      whatsappMessage: '',
     };
   }
 

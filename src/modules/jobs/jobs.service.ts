@@ -49,7 +49,8 @@ export class JobsService {
     try {
       const now = new Date();
       const upcoming = await this.bookings.find({
-        status: { $in: ['pending', 'confirmed'] },
+        status: 'confirmed',
+        paymentStatus: { $in: ['paid', 'deposit_paid'] },
         reminderSentAt: null,
         startAt: { $gt: now, $lt: new Date(now.getTime() + 48 * 3600000) },
       }).limit(200).exec();
@@ -108,6 +109,48 @@ export class JobsService {
       }
     } catch (error) {
       this.logger.warn(`Booking reminders failed: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  @Cron('*/5 * * * *', { name: 'expire-unpaid-bookings' })
+  async expireUnpaidBookings(): Promise<void> {
+    try {
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
+      const expired = await this.bookings.find({
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        source: { $in: ['storefront', 'marketplace'] },
+        $or: [
+          { paymentExpiresAt: { $lt: now } },
+          { paymentExpiresAt: null, createdAt: { $lt: cutoff } },
+        ],
+      }).select('_id publicToken bookingNumber').lean().exec();
+
+      if (expired.length) {
+        const ids = expired.map((b) => b._id);
+        await this.bookings.updateMany(
+          { _id: { $in: ids } },
+          {
+            $set: {
+              status: 'cancelled',
+              cancelledAt: now,
+              cancellationReason: 'Payment not completed within checkout window',
+            },
+            $push: {
+              history: {
+                status: 'cancelled',
+                at: now,
+                by: 'system',
+                note: 'Abandoned payment expired after 15 minutes',
+              },
+            },
+          },
+        ).exec();
+        this.logger.log(`Cancelled ${expired.length} expired unpaid booking(s)`);
+      }
+    } catch (error) {
+      this.logger.warn(`Expiring unpaid bookings failed: ${error instanceof Error ? error.message : 'unknown'}`);
     }
   }
 

@@ -210,6 +210,9 @@ export class Booking {
   @Prop({ type: String, default: null })
   paymentReference: string | null;
 
+  @Prop({ type: Date, default: null, index: true })
+  paymentExpiresAt: Date | null;
+
   @Prop({ type: String, default: null })
   saleId: string | null;
 
