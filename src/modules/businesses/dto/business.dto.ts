@@ -164,6 +164,14 @@ export class WeeklyHoursDto {
   @ApiProperty({ example: '18:00' })
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Closing time must use HH:MM.' })
   end: string;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Maximum appointments for this weekday. 0 = unlimited.' })
+  @IsInt() @Min(0) @Max(100) @IsOptional()
+  maxSlots?: number;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Slot interval override for this weekday. 0 = use business default.' })
+  @IsInt() @Min(0) @Max(240) @IsOptional()
+  slotIntervalMinutes?: number;
 }
 
 export class BookingSettingsDto {
@@ -270,6 +278,16 @@ export class BookingSettingsDto {
   @IsOptional()
   @MaxLength(1000)
   policy?: string;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  waitlistOnClosedDays?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  waitlistPaymentEnabled?: boolean;
 }
 
 export class AddSettlementAccountDto {

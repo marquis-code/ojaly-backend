@@ -46,9 +46,9 @@ export class AvailabilityService {
     const windowEnd = addMinutes(now, Math.max(1, settings.windowDays) * 1440);
     const dayStart = zonedDate(date, '00:00', timezone);
     const dayEnd = zonedDate(date, '23:59', timezone);
-    if (dayEnd < now) return { date, timezone, slots: [], service: this.serviceView(service), closed: true };
-    if (!options?.ignoreWindow && dayStart > windowEnd) return { date, timezone, slots: [], service: this.serviceView(service), closed: false };
-    if ((settings.closedDates || []).includes(date)) return { date, timezone, slots: [], service: this.serviceView(service), closed: true };
+    if (dayEnd < now) return { date, timezone, slots: [], service: this.serviceView(service), closed: true, waitlistAllowed: Boolean(settings.waitlistOnClosedDays), full: false };
+    if (!options?.ignoreWindow && dayStart > windowEnd) return { date, timezone, slots: [], service: this.serviceView(service), closed: false, waitlistAllowed: true, full: false };
+    if ((settings.closedDates || []).includes(date)) return { date, timezone, slots: [], service: this.serviceView(service), closed: true, waitlistAllowed: Boolean(settings.waitlistOnClosedDays), full: false };
 
     const allProviders = await this.providers.find({
       businessId,
@@ -57,14 +57,16 @@ export class AvailabilityService {
       ...(providerId ? { _id: providerId } : service.providerIds?.length ? { _id: { $in: service.providerIds } } : {}),
     }).sort({ sortOrder: 1 }).lean().exec();
     if (!allProviders.length) {
-      return { date, timezone, slots: [], service: this.serviceView(service), closed: true };
+      return { date, timezone, slots: [], service: this.serviceView(service), closed: true, waitlistAllowed: Boolean(settings.waitlistOnClosedDays), full: false };
     }
 
     const weekday = weekdayForDate(date, timezone);
     const defaultSchedule = businessDefaultSchedule(settings);
-    const interval = Math.max(5, settings.slotIntervalMinutes || 30);
+    const daySettings = (settings.weeklyHours || []).find((day) => day.day === weekday);
+    const interval = Math.max(5, daySettings?.slotIntervalMinutes || settings.slotIntervalMinutes || 30);
+    const effectiveServiceDuration = service.durationMinutes > 0 ? service.durationMinutes : interval;
     const minStart = Math.max(now.getTime() + (settings.leadTimeMinutes || 0) * 60000, dayStart.getTime());
-    const duration = (durationOverride || service.durationMinutes) + (service.bufferBeforeMinutes || 0) + (service.bufferAfterMinutes || 0);
+    const duration = (durationOverride || effectiveServiceDuration) + (service.bufferBeforeMinutes || 0) + (service.bufferAfterMinutes || 0);
 
     const nowMs = now.getTime();
     const rawExisting = await this.bookings.find({
@@ -93,7 +95,7 @@ export class AvailabilityService {
       const draft = (checkout.metadata as Record<string, any>)?.bookingDraft;
       if (!draft?.providerId || !draft?.startAt) continue;
       const draftStartAt = new Date(draft.startAt);
-      const draftDuration = Number(draft.durationMinutes || service.durationMinutes);
+      const draftDuration = Number(draft.durationMinutes || effectiveServiceDuration);
       const draftBlockStart = addMinutes(draftStartAt, -(service.bufferBeforeMinutes || 0));
       const draftBlockEnd = addMinutes(addMinutes(draftStartAt, draftDuration), service.bufferAfterMinutes || 0);
       if (draftBlockStart < dayEnd && draftBlockEnd > dayStart) {
@@ -103,6 +105,12 @@ export class AvailabilityService {
           blockEndAt: draftBlockEnd,
         });
       }
+    }
+
+    const dayCapacity = Math.max(0, Number(daySettings?.maxSlots || 0));
+    if (dayCapacity > 0) {
+      const dayBookings = await this.bookings.countDocuments({ businessId, status: { $in: ['pending', 'confirmed'] }, startAt: { $gte: dayStart, $lte: dayEnd } }).exec();
+      if (dayBookings >= dayCapacity) return { date, timezone, slots: [], service: this.serviceView(service), closed: false, waitlistAllowed: true, full: true };
     }
 
     const externalBusy = await this.calendarSync.busyForDay(businessId, dayStart, dayEnd).catch(() => []);
@@ -120,7 +128,7 @@ export class AvailabilityService {
         const startAt = zonedDate(date, timeFromMinutes(cursor), timezone);
         if (startAt.getTime() < minStart) continue;
         const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
-        const blockEndAt = addMinutes(addMinutes(startAt, service.durationMinutes), service.bufferAfterMinutes || 0);
+        const blockEndAt = addMinutes(addMinutes(startAt, effectiveServiceDuration), service.bufferAfterMinutes || 0);
         if (blockEndAt > dayEnd) continue;
 
         if (schedule.breaks?.some((b) => cursor < minutesFromTime(b.end) && cursor + duration > minutesFromTime(b.start))) continue;
@@ -145,7 +153,7 @@ export class AvailabilityService {
         if (current) current.providers.push(slotProvider);
         else slots.set(key, {
           startAt: key,
-          endAt: addMinutes(startAt, durationOverride || service.durationMinutes).toISOString(),
+          endAt: addMinutes(startAt, durationOverride || effectiveServiceDuration).toISOString(),
           time: timeFromMinutes(cursor),
           providers: [slotProvider],
         });

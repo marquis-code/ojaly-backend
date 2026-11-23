@@ -28,6 +28,8 @@ import { PackagePurchase, PackagePurchaseDocument } from '../packages/package.sc
 import { Sale, SaleDocument } from '../sales/sale.schema';
 import { Counter, CounterDocument } from '../plans/counter.schema';
 import { Customer, CustomerDocument } from '../customers/customer.schema';
+import { WaitlistEntry, WaitlistDocument } from '../waitlist/waitlist.schema';
+import { WhatsappClientService } from '../whatsapp/whatsapp-client.service';
 import { ReceiptsService } from '../receipts/receipts.service';
 import { BookingsService } from '../bookings/bookings.service';
 import { nextSequence } from '../../common/utils/order-number';
@@ -74,6 +76,7 @@ export class PaymentsService {
     @InjectModel(Sale.name) private readonly sales: Model<SaleDocument>,
     @InjectModel(Counter.name) private readonly counters: Model<CounterDocument>,
     @InjectModel(Customer.name) private readonly customers: Model<CustomerDocument>,
+    @InjectModel(WaitlistEntry.name) private readonly waitlists: Model<WaitlistDocument>,
     private readonly receipts: ReceiptsService,
     @InjectConnection() private readonly connection: Connection,
     private readonly paystack: PaystackService,
@@ -84,6 +87,7 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly affiliates: AffiliatesService,
     private readonly config: ConfigService,
+    private readonly whatsapp: WhatsappClientService,
   ) {}
 
   async createOrderLink(userId: string, businessId: string, orderId: string, dto: CreatePaymentLinkDto) {
@@ -236,6 +240,24 @@ export class PaymentsService {
         bookingDraft,
         customerName: (bookingDraft.customerName as string) || 'Customer',
       },
+    });
+    return { reference, authorizationUrl: initialized.authorizationUrl, amountKobo, publicKey: this.paystack.publicKey };
+  }
+
+  async initializeWaitlistPayment(businessId: string, customerEmail: string, amountKobo: number, waitlistId: string) {
+    const email = await this.resolveEmail(businessId, customerEmail);
+    const reference = this.reference('wait');
+    const initialized = await this.paystack.initialize({
+      email,
+      amountKobo,
+      reference,
+      callbackUrl: `${this.config.get('appUrl')}/payment/callback`,
+      metadata: { purpose: 'waitlist', businessId, waitlistId },
+    });
+    await this.payments.create({
+      reference, businessId, purpose: 'waitlist', waitlistId, amountKobo,
+      email, status: 'pending', authorizationUrl: initialized.authorizationUrl,
+      accessCode: initialized.accessCode, createdBy: null, metadata: { waitlistId },
     });
     return { reference, authorizationUrl: initialized.authorizationUrl, amountKobo, publicKey: this.paystack.publicKey };
   }
@@ -542,6 +564,13 @@ export class PaymentsService {
       const booking = await this.bookings.findById(payment.bookingId).select('publicToken').lean().exec();
       if (booking?.publicToken) return `/booking/${booking.publicToken}?paid=1`;
     }
+    if (payment.purpose === 'waitlist' && payment.waitlistId) {
+      const entry = await this.waitlists.findById(payment.waitlistId).select('businessId serviceId').lean().exec();
+      if (entry) {
+        const business = await this.businesses.findById(entry.businessId).select('slug').lean().exec();
+        if (business?.slug) return `/s/${business.slug}/services/${entry.serviceId}?waitlist=paid`;
+      }
+    }
     if (payment.purpose === 'package' && payment.packagePurchaseId) {
       const purchase = await this.packagePurchases.findById(payment.packagePurchaseId).select('publicToken').lean().exec();
       if (purchase?.publicToken) return `/package/${purchase.publicToken}?paid=1`;
@@ -702,6 +731,25 @@ export class PaymentsService {
           await purchase.save();
           if (purchase.customerId) await this.customers.updateOne({ _id: purchase.customerId, businessId: purchase.businessId }, { $inc: { totalSpentKobo: purchase.priceKobo, orderCount: 1 }, $set: { lastPurchaseAt: new Date() } }).exec();
           await this.receipts.createForSale(sale, true).catch(() => undefined);
+        }
+      } else if (claimed.purpose === 'waitlist' && claimed.waitlistId) {
+        const entry = await this.waitlists.findOne({ _id: claimed.waitlistId, businessId: claimed.businessId }).exec();
+        if (!entry) throw new NotFoundException('Waitlist request not found.');
+        if (entry.paymentStatus !== 'paid') {
+          entry.paymentStatus = 'paid';
+          entry.amountKobo = claimed.amountKobo;
+          entry.paymentReference = claimed.reference;
+          entry.paidAt = new Date();
+          await entry.save();
+          const business = await this.businesses.findById(claimed.businessId).lean().exec();
+          const phone = business?.whatsappNumber || business?.publicPhone;
+          if (phone) {
+            await this.whatsapp.sendTextDirect(
+              claimed.businessId,
+              phone,
+              `🕒 Paid waitlist request\n\n${entry.customerName} (${entry.customerPhone}) paid ${formatNaira(entry.amountKobo)} to join the waitlist for ${entry.serviceName}.\n\nOpen the waitlist in Ojaly: ${this.config.get('appUrl')}/app/bookings/waitlist`,
+            ).catch(() => undefined);
+          }
         }
       } else if (claimed.purpose === 'booking') {
         if (claimed.bookingId) {

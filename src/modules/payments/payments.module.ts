@@ -18,6 +18,7 @@ import { PackagePurchase, PackagePurchaseSchema } from '../packages/package.sche
 import { Sale, SaleSchema } from '../sales/sale.schema';
 import { Counter, CounterSchema } from '../plans/counter.schema';
 import { Customer, CustomerSchema } from '../customers/customer.schema';
+import { WaitlistEntry, WaitlistSchema } from '../waitlist/waitlist.schema';
 import { ReceiptsModule } from '../receipts/receipts.module';
 import { OrdersModule } from '../orders/orders.module';
 import { DebtsModule } from '../debts/debts.module';
@@ -42,6 +43,7 @@ import { BookingsModule } from '../bookings/bookings.module';
       { name: Sale.name, schema: SaleSchema },
       { name: Counter.name, schema: CounterSchema },
       { name: Customer.name, schema: CustomerSchema },
+      { name: WaitlistEntry.name, schema: WaitlistSchema },
     ]),
     OrdersModule,
     DebtsModule,

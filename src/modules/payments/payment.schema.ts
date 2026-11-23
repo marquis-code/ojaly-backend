@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 import { schemaOptions } from '../../common/schemas/schema-options';
 
 export type PaymentDocument = HydratedDocument<Payment>;
-export type PaymentPurpose = 'order' | 'debt' | 'subscription' | 'invoice' | 'booking' | 'package';
+export type PaymentPurpose = 'order' | 'debt' | 'subscription' | 'invoice' | 'booking' | 'package' | 'waitlist';
 export type PaymentStatus = 'pending' | 'processing' | 'success' | 'failed' | 'abandoned' | 'reversed';
 
 @Schema(schemaOptions('payments'))
@@ -16,7 +16,7 @@ export class Payment {
   @Prop({ type: String, required: true, index: true })
   businessId: string;
 
-  @Prop({ type: String, enum: ['order', 'debt', 'subscription', 'invoice', 'booking', 'package'], required: true })
+  @Prop({ type: String, enum: ['order', 'debt', 'subscription', 'invoice', 'booking', 'package', 'waitlist'], required: true })
   purpose: PaymentPurpose;
 
   @Prop({ type: String, default: null })
@@ -33,6 +33,9 @@ export class Payment {
 
   @Prop({ type: String, default: null })
   packagePurchaseId: string | null;
+
+  @Prop({ type: String, default: null })
+  waitlistId: string | null;
 
   @Prop({ type: String, default: null })
   subscriptionId: string | null;

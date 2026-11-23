@@ -59,9 +59,14 @@ export class CreateServiceDto {
 
   @ApiProperty({ example: 120 })
   @IsInt()
-  @Min(5)
+  @Min(0)
   @Max(1440)
   durationMinutes: number;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  showDuration?: boolean;
 
   @ApiPropertyOptional()
   @IsInt()

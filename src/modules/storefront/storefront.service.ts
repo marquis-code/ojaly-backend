@@ -139,6 +139,11 @@ export class StorefrontService {
   async joinWaitlist(slug: string, dto: CreateWaitlistDto) {
     const business = await this.requireBusiness({ slug: slug.toLowerCase() });
     const entry = await this.waitlist.join(business._id.toString(), dto);
+    if (entry.paymentStatus === 'unpaid' && entry.amountKobo > 0) {
+      if (!dto.customerEmail) throw new BadRequestException('Add your email to pay and join the waitlist.');
+      const payment = await this.payments.initializeWaitlistPayment(business._id.toString(), dto.customerEmail, entry.amountKobo, entry.id);
+      return { entry, business: this.publicBusiness(business), payment };
+    }
     return { entry, business: this.publicBusiness(business) };
   }
 

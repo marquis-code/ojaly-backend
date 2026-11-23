@@ -51,6 +51,24 @@ export class WaitlistEntry {
 
   @Prop({ type: Date, default: null })
   notifiedAt: Date | null;
+
+  @Prop({ type: String, default: null })
+  customerId: string | null;
+
+  @Prop({ type: String, enum: ['not_required', 'unpaid', 'paid', 'refunded'], default: 'not_required', index: true })
+  paymentStatus: 'not_required' | 'unpaid' | 'paid' | 'refunded';
+
+  @Prop({ type: Number, default: 0 })
+  amountKobo: number;
+
+  @Prop({ type: String, default: null })
+  paymentReference: string | null;
+
+  @Prop({ type: Date, default: null })
+  paidAt: Date | null;
+
+  @Prop({ type: Number, default: 0 })
+  refundedKobo: number;
 }
 
 export const WaitlistSchema = SchemaFactory.createForClass(WaitlistEntry);

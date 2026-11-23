@@ -18,6 +18,8 @@ export interface WeeklyHours {
   isOpen: boolean;
   start: string;
   end: string;
+  maxSlots?: number;
+  slotIntervalMinutes?: number;
 }
 
 export interface BookingSettings {
@@ -37,16 +39,18 @@ export interface BookingSettings {
   closedDates: string[];
   locations: string[];
   policy: string;
+  waitlistOnClosedDays: boolean;
+  waitlistPaymentEnabled: boolean;
 }
 
 const defaultWeeklyHours: WeeklyHours[] = [
-  { day: 1, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 2, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 3, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 4, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 5, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 6, isOpen: true, start: '09:00', end: '18:00' },
-  { day: 0, isOpen: false, start: '09:00', end: '18:00' },
+  { day: 1, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 2, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 3, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 4, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 5, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 6, isOpen: true, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
+  { day: 0, isOpen: false, start: '09:00', end: '18:00', maxSlots: 0, slotIntervalMinutes: 0 },
 ];
 
 export const defaultBookingSettings = (): BookingSettings => ({
@@ -65,7 +69,9 @@ export const defaultBookingSettings = (): BookingSettings => ({
   weeklyHours: defaultWeeklyHours,
   closedDates: [],
   locations: [],
-  policy: 'Please arrive 5 minutes early. Cancellations within 24 hours may lose the deposit.',
+  policy: '',
+  waitlistOnClosedDays: false,
+  waitlistPaymentEnabled: false,
 });
 
 export interface SocialLinks {

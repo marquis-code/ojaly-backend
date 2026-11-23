@@ -29,6 +29,12 @@ export class WaitlistController {
     return this.waitlist.setStatus(businessId, id, body.status);
   }
 
+  @Post(':id/refund')
+  @Permissions(PERMISSIONS.BOOKINGS_WRITE)
+  refund(@CurrentBusiness() businessId: string, @Param('id') id: string) {
+    return this.waitlist.refundToWallet(businessId, id);
+  }
+
   @Delete(':id')
   @Permissions(PERMISSIONS.BOOKINGS_WRITE)
   remove(@CurrentBusiness() businessId: string, @Param('id') id: string) {

@@ -34,6 +34,12 @@ export class Customer {
   outstandingKobo: number;
 
   @Prop({ type: Number, default: 0 })
+  walletBalanceKobo: number;
+
+  @Prop({ type: [Object], default: [] })
+  walletTransactions: { amountKobo: number; type: string; reason: string; reference?: string; createdAt: Date }[];
+
+  @Prop({ type: Number, default: 0 })
   orderCount: number;
 
   @Prop({ type: Date, default: null })

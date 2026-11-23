@@ -47,6 +47,7 @@ export class ServicesService {
       imageUrl: dto.imageUrl || null,
       color: dto.color || '#FF5A1F',
       durationMinutes: dto.durationMinutes,
+      showDuration: dto.showDuration ?? dto.durationMinutes > 0,
       bufferBeforeMinutes: dto.bufferBeforeMinutes ?? 0,
       bufferAfterMinutes: dto.bufferAfterMinutes ?? 0,
       priceKobo: dto.priceKobo,
@@ -69,7 +70,7 @@ export class ServicesService {
       await this.assertProviders(businessId, dto.providerIds);
       service.providerIds = dto.providerIds;
     }
-    for (const key of ['name', 'description', 'category', 'imageUrl', 'color', 'durationMinutes', 'bufferBeforeMinutes', 'bufferAfterMinutes', 'priceKobo', 'depositKobo', 'requiresDeposit', 'maxBookingsPerSlot', 'addOns', 'isActive', 'isPublic', 'sortOrder'] as const) {
+    for (const key of ['name', 'description', 'category', 'imageUrl', 'color', 'durationMinutes', 'showDuration', 'bufferBeforeMinutes', 'bufferAfterMinutes', 'priceKobo', 'depositKobo', 'requiresDeposit', 'maxBookingsPerSlot', 'addOns', 'isActive', 'isPublic', 'sortOrder'] as const) {
       if (dto[key] !== undefined) (service as unknown as Record<string, unknown>)[key] = dto[key];
     }
     await service.save();
@@ -115,6 +116,7 @@ export class ServicesService {
       imageUrl: service.imageUrl,
       color: service.color,
       durationMinutes: service.durationMinutes,
+      showDuration: service.showDuration !== false && service.durationMinutes > 0,
       bufferBeforeMinutes: service.bufferBeforeMinutes,
       bufferAfterMinutes: service.bufferAfterMinutes,
       priceKobo: service.priceKobo,

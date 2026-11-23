@@ -40,8 +40,11 @@ export class Service {
   @Prop({ type: String, default: '#FF5A1F' })
   color: string;
 
-  @Prop({ type: Number, required: true, min: 5, max: 1440 })
+  @Prop({ type: Number, required: true, min: 0, max: 1440 })
   durationMinutes: number;
+
+  @Prop({ type: Boolean, default: true })
+  showDuration: boolean;
 
   @Prop({ type: Number, default: 0, min: 0, max: 240 })
   bufferBeforeMinutes: number;

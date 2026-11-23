@@ -270,7 +270,8 @@ export class BookingsService implements OnModuleInit {
     const effectiveSource = marketplaceCampus ? 'marketplace' : source;
     if (!location && configuredLocations.length && ['storefront', 'marketplace'].includes(effectiveSource)) throw new BadRequestException('Choose a booking location.');
     const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
-    const durationMinutes = overrides?.durationMinutes ?? service.durationMinutes + addonMinutes;
+    const serviceDuration = service.durationMinutes > 0 ? service.durationMinutes : Math.max(5, business.bookingSettings?.slotIntervalMinutes || 30);
+    const durationMinutes = overrides?.durationMinutes ?? serviceDuration + addonMinutes;
     const timezone = business.timezone || 'Africa/Lagos';
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes, { ignoreWindow: effectiveSource !== 'storefront' && effectiveSource !== 'marketplace' });
 
@@ -570,7 +571,8 @@ export class BookingsService implements OnModuleInit {
     if (!location && configuredLocations.length) throw new BadRequestException('Choose a booking location.');
 
     const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
-    const durationMinutes = service.durationMinutes + addonMinutes;
+    const serviceDuration = service.durationMinutes > 0 ? service.durationMinutes : Math.max(5, business.bookingSettings?.slotIntervalMinutes || 30);
+    const durationMinutes = serviceDuration + addonMinutes;
     const timezone = business.timezone || 'Africa/Lagos';
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes);
 
@@ -664,7 +666,7 @@ export class BookingsService implements OnModuleInit {
 
     const phone = normalizeNigerianPhone(draft.customerPhone) || draft.customerPhone;
     const startAt = new Date(draft.startAt);
-    const durationMinutes = Number(draft.durationMinutes || service.durationMinutes);
+    const durationMinutes = Number(draft.durationMinutes || service.durationMinutes || business.bookingSettings?.slotIntervalMinutes || 30);
     const blockStartAt = addMinutes(startAt, -(service.bufferBeforeMinutes || 0));
     const endAt = addMinutes(startAt, durationMinutes);
     const blockEndAt = addMinutes(endAt, service.bufferAfterMinutes || 0);
