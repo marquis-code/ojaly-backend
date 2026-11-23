@@ -10,7 +10,7 @@ import { ReceiptsService } from '../receipts/receipts.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { bookingReminderEmail } from '../mail/email-templates';
+import { bookingReminderEmail, bookingReviewEmail } from '../mail/email-templates';
 import { paymentFailedEmail } from '../mail/email-templates';
 import { ConfigService } from '@nestjs/config';
 import { Business, BusinessDocument } from '../businesses/business.schema';
@@ -109,6 +109,47 @@ export class JobsService {
       }
     } catch (error) {
       this.logger.warn(`Booking reminders failed: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  @Cron('0 */6 * * *', { timeZone: 'Africa/Lagos', name: 'review-reminders' })
+  async reviewReminders(): Promise<void> {
+    try {
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - 24 * 3600000);
+      const minCompleted = new Date(now.getTime() - 30 * 86400000);
+      const bookings = await this.bookings.find({
+        status: 'completed',
+        reviewedAt: null,
+        reviewToken: { $ne: null },
+        reviewReminderSentAt: null,
+        completedAt: { $lte: cutoff, $gte: minCompleted },
+      }).limit(100).exec();
+      for (const booking of bookings) {
+        const business = await this.businesses.findById(booking.businessId).lean().exec();
+        if (!business) continue;
+        const link = `${this.config.get('appUrl')}/review/${booking.reviewToken}`;
+        if (booking.customerEmail) {
+          const email = bookingReviewEmail({
+            customerName: booking.customerName, businessName: business.name,
+            businessLogo: business.logoUrl, businessTagline: business.tagline, businessSlug: business.slug,
+            serviceName: booking.serviceName, providerName: booking.providerName, reviewUrl: link,
+            policy: business.bookingSettings?.policy || null,
+          });
+          await this.mail.send({ to: booking.customerEmail, subject: `A quick reminder: ${email.subject}`, html: email.html, template: 'booking_review_reminder', businessId: booking.businessId }).catch(() => undefined);
+        }
+        if (booking.customerPhone) {
+          await this.whatsapp.sendTextDirect(
+            booking.businessId, booking.customerPhone,
+            `Hi ${booking.customerName.split(' ')[0]}! We'd love your feedback on your ${booking.serviceName} with ${business.name}. It takes under a minute: ${link}`,
+          ).catch(() => undefined);
+        }
+        booking.reviewReminderSentAt = new Date();
+        await booking.save();
+      }
+      if (bookings.length) this.logger.log(`Sent ${bookings.length} review reminder(s).`);
+    } catch (error) {
+      this.logger.warn(`Review reminders failed: ${error instanceof Error ? error.message : 'unknown'}`);
     }
   }
 

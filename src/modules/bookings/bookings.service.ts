@@ -1054,6 +1054,8 @@ export class BookingsService implements OnModuleInit {
       if (!booking.reviewToken) booking.reviewToken = randomToken(24);
       booking.history.push({ status: 'completed', at: new Date(), by: userId, note: `Package ${booking.packageCode}` });
       await booking.save();
+      const packageBusiness = await this.businesses.findById(businessId).lean().exec();
+      if (packageBusiness) await this.sendReviewRequest(booking, packageBusiness as unknown as BusinessDocument).catch(() => undefined);
       return this.view(booking);
     }
     if (booking.status === 'completed' && booking.saleId) return this.view(booking);
@@ -1159,7 +1161,7 @@ export class BookingsService implements OnModuleInit {
   }
 
   private async sendReviewRequest(booking: BookingDocument, business: BusinessDocument) {
-    if (!booking.reviewToken) return;
+    if (!booking.reviewToken || booking.reviewedAt || booking.reviewRequestedAt) return;
     const link = `${this.config.get('appUrl')}/review/${booking.reviewToken}`;
     await this.notifications.create({
       businessId: booking.businessId, type: 'booking', tone: 'info',
@@ -1167,20 +1169,34 @@ export class BookingsService implements OnModuleInit {
       message: `${booking.customerName} can now review ${booking.serviceName}.`,
       data: { bookingId: booking._id.toString(), reviewUrl: link },
     });
-    if (!booking.customerEmail) return;
-    const review = bookingReviewEmail({
-      customerName: booking.customerName, businessName: business.name,
-      businessLogo: business.logoUrl, businessTagline: business.tagline, businessSlug: business.slug,
-      serviceName: booking.serviceName, providerName: booking.providerName, reviewUrl: link,
-      policy: business.bookingSettings?.policy || null,
-    });
-    await this.mail.send({
-      to: booking.customerEmail,
-      subject: review.subject,
-      html: review.html,
-      template: 'booking_review_request',
-      businessId: booking.businessId,
-    });
+    const channels: string[] = [];
+    if (booking.customerEmail) {
+      const review = bookingReviewEmail({
+        customerName: booking.customerName, businessName: business.name,
+        businessLogo: business.logoUrl, businessTagline: business.tagline, businessSlug: business.slug,
+        serviceName: booking.serviceName, providerName: booking.providerName, reviewUrl: link,
+        policy: business.bookingSettings?.policy || null,
+      });
+      await this.mail.send({
+        to: booking.customerEmail,
+        subject: review.subject,
+        html: review.html,
+        template: 'booking_review_request',
+        businessId: booking.businessId,
+      }).catch(() => undefined);
+      channels.push('email');
+    }
+    if (booking.customerPhone) {
+      await this.whatsapp.sendTextDirect(
+        booking.businessId,
+        booking.customerPhone,
+        `Hi ${booking.customerName.split(' ')[0]}! How was your ${booking.serviceName} with ${business.name}? Leave a quick review here: ${link}`,
+      ).catch(() => undefined);
+      channels.push('whatsapp');
+    }
+    booking.reviewRequestedAt = new Date();
+    booking.reviewRequestChannel = channels.join('+') || 'none';
+    await booking.save();
   }
 
   private async resolveProvider(businessId: string, service: ServiceDocument | (Service & { _id: unknown }), providerId?: string) {

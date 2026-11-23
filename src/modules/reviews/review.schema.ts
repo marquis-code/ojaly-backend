@@ -40,6 +40,22 @@ export class Review {
   @Prop({ type: String, default: '' })
   comment: string;
 
+  @Prop({ type: Object, default: {} })
+  categoryRatings: { quality?: number; punctuality?: number; communication?: number; value?: number };
+
+  @Prop({ type: [String], default: [] })
+  tags: string[];
+
+  @Prop({ type: Boolean, default: null })
+  wouldRecommend: boolean | null;
+
+  @Prop({ type: String, default: '' })
+  vendorReply: string;
+
+  @Prop({ type: Date, default: null })
+  vendorRepliedAt: Date | null;
+
+
   @Prop({ type: String, required: true, unique: true, index: true })
   publicToken: string;
 

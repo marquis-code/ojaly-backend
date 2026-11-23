@@ -246,6 +246,16 @@ export class Booking {
   @Prop({ type: Date, default: null })
   reviewedAt: Date | null;
 
+  @Prop({ type: Date, default: null })
+  reviewRequestedAt: Date | null;
+
+  @Prop({ type: String, default: null })
+  reviewRequestChannel: string | null;
+
+  @Prop({ type: Date, default: null })
+  reviewReminderSentAt: Date | null;
+
+
   @Prop({ type: String, default: null })
   createdBy: string | null;
 

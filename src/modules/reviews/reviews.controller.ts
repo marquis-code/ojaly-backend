@@ -4,7 +4,7 @@ import { CurrentBusiness, Permissions } from '../../common/decorators/auth.decor
 import { Public } from '../../common/decorators/public.decorator';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { ReviewsService } from './reviews.service';
-import { ReviewQueryDto, SubmitReviewDto, UpdateReviewDto } from './review.dto';
+import { ReplyReviewDto, ReviewQueryDto, SubmitReviewDto, UpdateReviewDto } from './review.dto';
 
 @ApiTags('Reviews')
 @Controller()
@@ -28,6 +28,13 @@ export class ReviewsController {
   @Permissions(PERMISSIONS.BOOKINGS_READ)
   list(@CurrentBusiness() businessId: string, @Query() query: ReviewQueryDto) {
     return this.reviews.list(businessId, query);
+  }
+
+  @ApiBearerAuth()
+  @Post('reviews/:id/reply')
+  @Permissions(PERMISSIONS.BOOKINGS_WRITE)
+  reply(@CurrentBusiness() businessId: string, @Param('id') id: string, @Body() dto: ReplyReviewDto) {
+    return this.reviews.reply(businessId, id, dto);
   }
 
   @ApiBearerAuth()

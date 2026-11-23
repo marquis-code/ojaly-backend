@@ -8,7 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { randomToken } from '../../common/utils/tokens';
 import { sanitizeText } from '../../common/utils/sanitize';
 import { Review, ReviewDocument, ReviewStatus } from './review.schema';
-import { ReviewQueryDto, SubmitReviewDto } from './review.dto';
+import { ReplyReviewDto, ReviewQueryDto, SubmitReviewDto } from './review.dto';
 
 @Injectable()
 export class ReviewsService {
@@ -47,6 +47,7 @@ export class ReviewsService {
     if (booking.status !== 'completed') throw new BadRequestException('You can review an appointment after it is completed.');
     const existing = await this.reviews.findOne({ bookingId: booking._id.toString() }).lean().exec();
     if (existing) throw new BadRequestException('This appointment has already been reviewed.');
+    const cleanTags = [...new Set((dto.tags || []).map((tag) => sanitizeText(tag, 40).trim()).filter(Boolean))].slice(0, 6);
     const review = await this.reviews.create({
       businessId: booking.businessId,
       bookingId: booking._id.toString(),
@@ -58,6 +59,9 @@ export class ReviewsService {
       customerName: booking.customerName,
       rating: dto.rating,
       comment: sanitizeText(dto.comment, 1000),
+      categoryRatings: dto.categoryRatings || {},
+      tags: cleanTags,
+      wouldRecommend: dto.wouldRecommend ?? null,
       publicToken: randomToken(20),
       status: 'published',
     });
@@ -75,36 +79,78 @@ export class ReviewsService {
   async list(businessId: string, query: ReviewQueryDto) {
     const filter: Record<string, unknown> = { businessId };
     if (query.status && query.status !== 'all') filter.status = query.status;
-    const [items, all] = await Promise.all([
+    const [items, all, requests] = await Promise.all([
       this.reviews.find(filter).sort({ createdAt: -1 }).limit(200).lean().exec(),
-      this.reviews.find({ businessId, status: 'published' }).select('rating').lean().exec(),
+      this.reviews.find({ businessId }).select('rating status vendorReply categoryRatings serviceName createdAt').lean().exec(),
+      this.bookings.find({
+        businessId, status: 'completed', reviewedAt: null,
+        reviewToken: { $ne: null },
+      }).select('bookingNumber customerName customerPhone customerEmail serviceName providerName completedAt startAt reviewToken reviewedAt reviewRequestedAt').sort({ completedAt: -1, startAt: -1 }).limit(50).lean().exec(),
     ]);
-    const average = all.length ? all.reduce((sum, review) => sum + review.rating, 0) / all.length : 0;
+    const published = all.filter((review) => review.status === 'published');
+    const average = published.length ? published.reduce((sum, review) => sum + review.rating, 0) / published.length : 0;
+    const distribution = [5, 4, 3, 2, 1].map((star) => ({ star, count: published.filter((review) => review.rating === star).length }));
+    const services = new Map<string, { name: string; count: number; rating: number }>();
+    for (const review of published) {
+      const current = services.get(review.serviceName) || { name: review.serviceName, count: 0, rating: 0 };
+      current.count += 1; current.rating += review.rating; services.set(review.serviceName, current);
+    }
+    const categoryKeys = ['quality', 'punctuality', 'communication', 'value'] as const;
+    const categoryAverages = Object.fromEntries(categoryKeys.map((key) => {
+      const values = published.map((review) => review.categoryRatings?.[key]).filter((value): value is number => typeof value === 'number');
+      return [key, values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null];
+    }));
     return {
       items: items.map((review) => this.view(review)),
       summary: {
-        total: all.length,
+        total: published.length,
         average: Math.round(average * 10) / 10,
-        fiveStar: all.filter((review) => review.rating === 5).length,
-        needsAttention: all.filter((review) => review.rating <= 3).length,
+        fiveStar: published.filter((review) => review.rating === 5).length,
+        needsAttention: published.filter((review) => review.rating <= 3).length,
+        responseRate: published.length ? Math.round((published.filter((review) => review.vendorReply).length / published.length) * 100) : 0,
+        pendingRequests: requests.length,
+        distribution,
+        categoryAverages,
+        services: [...services.values()].map((service) => ({ ...service, rating: Math.round((service.rating / service.count) * 10) / 10 })).sort((a, b) => b.count - a.count),
       },
+      requests: requests.map((booking) => ({
+        id: booking._id.toString(), bookingNumber: booking.bookingNumber,
+        customerName: booking.customerName, customerPhone: booking.customerPhone,
+        customerEmail: booking.customerEmail || null, serviceName: booking.serviceName,
+        providerName: booking.providerName, completedAt: booking.completedAt || booking.startAt,
+        reviewRequestedAt: booking.reviewRequestedAt || null,
+        reviewUrl: this.reviewUrl(booking.reviewToken),
+      })),
     };
   }
 
   async publishedForBusiness(businessId: string, serviceId?: string) {
     const filter: Record<string, unknown> = { businessId, status: 'published' };
     if (serviceId) filter.serviceId = serviceId;
+    const all = await this.reviews.find(filter).select('rating').lean().exec();
     const items = await this.reviews.find(filter).sort({ createdAt: -1 }).limit(6).lean().exec();
-    const average = items.length ? items.reduce((sum, review) => sum + review.rating, 0) / items.length : 0;
+    const average = all.length ? all.reduce((sum, review) => sum + review.rating, 0) / all.length : 0;
     return {
       items: items.map((review) => ({
         id: review.publicToken, rating: review.rating, comment: review.comment,
         customerName: review.customerName, serviceName: review.serviceName,
         providerName: review.providerName, createdAt: review.createdAt,
+        categoryRatings: review.categoryRatings || {}, tags: review.tags || [],
+        wouldRecommend: review.wouldRecommend ?? null, vendorReply: review.vendorReply || '',
       })),
       average: Math.round(average * 10) / 10,
-      count: items.length,
+      count: all.length,
     };
+  }
+
+  async reply(businessId: string, id: string, dto: ReplyReviewDto) {
+    const review = await this.reviews.findOneAndUpdate(
+      { _id: id, businessId },
+      { $set: { vendorReply: sanitizeText(dto.reply, 1000), vendorRepliedAt: new Date() } },
+      { new: true },
+    ).lean().exec();
+    if (!review) throw new NotFoundException('Review not found.');
+    return this.view(review);
   }
 
   async setStatus(businessId: string, id: string, status: ReviewStatus) {
@@ -129,6 +175,8 @@ export class ReviewsService {
       id: r._id.toString(), bookingId: r.bookingId, serviceId: r.serviceId, serviceName: r.serviceName,
       providerId: r.providerId, providerName: r.providerName, customerId: r.customerId,
       customerName: r.customerName, rating: r.rating, comment: r.comment,
+      categoryRatings: r.categoryRatings || {}, tags: r.tags || [], wouldRecommend: r.wouldRecommend ?? null,
+      vendorReply: r.vendorReply || '', vendorRepliedAt: r.vendorRepliedAt || null,
       publicToken: r.publicToken, status: r.status, createdAt: r.createdAt,
     };
   }

@@ -53,11 +53,12 @@ export class StorefrontService {
   async home(slug: string) {
     const business = await this.requireBusiness({ slug: slug.toLowerCase() });
     const mode = business.businessMode || 'products';
-    const [products, categories, services, providers] = await Promise.all([
+    const [products, categories, services, providers, reviews] = await Promise.all([
       mode === 'services' ? Promise.resolve([]) : this.products.find({ businessId: business._id.toString(), isActive: true }).sort({ createdAt: -1 }).limit(8).lean().exec(),
       mode === 'services' ? Promise.resolve([]) : this.products.distinct('category', { businessId: business._id.toString(), isActive: true }).exec(),
       mode === 'products' ? Promise.resolve([]) : this.services.publicList(business._id.toString()),
       mode === 'products' ? Promise.resolve([]) : this.providers.publicList(business._id.toString()),
+      this.reviews.publishedForBusiness(business._id.toString()),
     ]);
     return {
       business: this.publicBusiness(business),
@@ -68,6 +69,7 @@ export class StorefrontService {
       services,
       serviceCount: services.length,
       providers,
+      reviews,
       businessMode: mode,
     };
   }
