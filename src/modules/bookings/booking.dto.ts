@@ -171,6 +171,11 @@ export class BookingQueryDto {
   @IsOptional()
   search?: string;
 
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  @IsIn(['asc', 'desc'])
+  @IsOptional()
+  sort?: 'asc' | 'desc' = 'asc';
+
   @ApiPropertyOptional({ default: 1 })
   @Type(() => Number)
   @IsInt()

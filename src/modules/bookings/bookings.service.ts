@@ -146,7 +146,7 @@ export class BookingsService implements OnModuleInit {
     const page = query.page || 1;
     const limit = query.limit || 100;
     const [items, total] = await Promise.all([
-      this.bookings.find(filter).sort({ startAt: 1 }).skip((page - 1) * limit).limit(limit).lean().exec(),
+      this.bookings.find(filter).sort({ startAt: query.sort === 'desc' ? -1 : 1 }).skip((page - 1) * limit).limit(limit).lean().exec(),
       this.bookings.countDocuments(filter).exec(),
     ]);
     const today = localDateKey(new Date(), business.timezone || 'Africa/Lagos');
