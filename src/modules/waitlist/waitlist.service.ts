@@ -45,7 +45,18 @@ export class WaitlistService {
     if (!customer) customer = await this.customers.create({ businessId, name: sanitizeText(dto.customerName, 100), phone, email: dto.customerEmail || null, totalSpentKobo: 0, outstandingKobo: 0, walletBalanceKobo: 0 });
     const quantity = service.quantityEnabled ? Math.min(Math.max(1, service.maxQuantity || 20), Math.max(service.minQuantity || 1, Number(dto.quantity || 1))) : 1;
     const paymentEnabled = Boolean(business?.bookingSettings?.waitlistPaymentEnabled) && service.priceKobo > 0;
-    const amountKobo = paymentEnabled ? (service.requiresDeposit ? Math.min(service.priceKobo * quantity, (service.depositKobo || 0) * quantity) : service.priceKobo * quantity) : 0;
+    const baseSubtotalKobo = paymentEnabled ? (service.requiresDeposit ? Math.min(service.priceKobo * quantity, (service.depositKobo || 0) * quantity) : service.priceKobo * quantity) : 0;
+    let serviceChargeKobo = 0;
+    const waitlistChargeEnabled = business?.serviceChargeWaitlistEnabled !== false;
+    if (paymentEnabled && business?.serviceChargeEnabled && waitlistChargeEnabled) {
+      if (business.serviceChargeType === 'fixed') {
+        serviceChargeKobo = business.serviceChargeFixedKobo || 0;
+      } else {
+        const percent = business.serviceChargePercent || 0;
+        serviceChargeKobo = Math.round((baseSubtotalKobo * percent) / 100);
+      }
+    }
+    const amountKobo = baseSubtotalKobo + serviceChargeKobo;
     const entry = await this.entries.create({
       businessId,
       serviceId: service._id.toString(),
@@ -66,6 +77,8 @@ export class WaitlistService {
       roomNumber: dto.roomNumber ? sanitizeText(dto.roomNumber, 50) : '',
       notes: sanitizeText(dto.notes, 500),
       status: 'waiting',
+      subtotalKobo: baseSubtotalKobo,
+      serviceChargeKobo,
       amountKobo,
       paymentStatus: amountKobo > 0 ? 'unpaid' : 'not_required',
     });
@@ -216,7 +229,10 @@ ${this.configUrl()}/app/bookings/waitlist`,
       preferredFrom: e.preferredFrom, preferredTo: e.preferredTo, preferredStartAt: e.preferredStartAt,
       location: e.location || '', roomNumber: e.roomNumber || '',
       notes: e.notes, status: e.status, notifiedAt: e.notifiedAt, customerId: e.customerId,
-      paymentStatus: e.paymentStatus || 'not_required', amountKobo: e.amountKobo || 0,
+      paymentStatus: e.paymentStatus || 'not_required',
+      subtotalKobo: e.subtotalKobo !== undefined ? e.subtotalKobo : (e.amountKobo || 0),
+      serviceChargeKobo: e.serviceChargeKobo || 0,
+      amountKobo: e.amountKobo || 0,
       paymentReference: e.paymentReference || null, paidAt: e.paidAt || null, refundedKobo: e.refundedKobo || 0, createdAt: e.createdAt,
     };
   }

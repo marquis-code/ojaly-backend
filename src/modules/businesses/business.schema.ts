@@ -252,6 +252,9 @@ export class Business {
   @Prop({ type: Number, default: 0, min: 0 })
   serviceChargeFixedKobo: number;
 
+  @Prop({ type: Boolean, default: true })
+  serviceChargeWaitlistEnabled: boolean;
+
   @Prop({ type: Boolean, default: false })
   providerFeeEnabled: boolean;
 

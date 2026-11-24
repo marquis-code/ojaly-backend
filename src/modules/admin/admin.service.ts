@@ -267,6 +267,7 @@ export class AdminService {
           serviceChargeType: b.serviceChargeType || 'percent',
           serviceChargePercent: b.serviceChargePercent || 0,
           serviceChargeFixedKobo: b.serviceChargeFixedKobo || 0,
+          serviceChargeWaitlistEnabled: b.serviceChargeWaitlistEnabled !== false,
           createdAt: b.createdAt,
         };
       }),
@@ -414,6 +415,9 @@ export class AdminService {
     business.serviceChargeType = dto.type;
     business.serviceChargePercent = dto.percent ?? 0;
     business.serviceChargeFixedKobo = dto.fixedKobo ?? 0;
+    if (dto.waitlistEnabled !== undefined) {
+      business.serviceChargeWaitlistEnabled = dto.waitlistEnabled;
+    }
     await business.save();
 
     await this.audit.record({
@@ -428,6 +432,7 @@ export class AdminService {
         type: dto.type,
         percent: dto.percent,
         fixedKobo: dto.fixedKobo,
+        waitlistEnabled: business.serviceChargeWaitlistEnabled,
       },
     });
 
@@ -438,6 +443,7 @@ export class AdminService {
         type: business.serviceChargeType,
         percent: business.serviceChargePercent,
         fixedKobo: business.serviceChargeFixedKobo,
+        waitlistEnabled: business.serviceChargeWaitlistEnabled !== false,
       },
     };
   }

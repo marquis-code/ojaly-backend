@@ -74,6 +74,12 @@ export class WaitlistEntry {
   paymentStatus: 'not_required' | 'unpaid' | 'paid' | 'refunded';
 
   @Prop({ type: Number, default: 0 })
+  subtotalKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  serviceChargeKobo: number;
+
+  @Prop({ type: Number, default: 0 })
   amountKobo: number;
 
   @Prop({ type: String, default: null })

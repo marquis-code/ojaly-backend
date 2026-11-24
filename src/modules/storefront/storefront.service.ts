@@ -397,6 +397,7 @@ export class StorefrontService {
       serviceChargeType: b.serviceChargeType || 'percent',
       serviceChargePercent: b.serviceChargePercent || 0,
       serviceChargeFixedKobo: b.serviceChargeFixedKobo || 0,
+      serviceChargeWaitlistEnabled: b.serviceChargeWaitlistEnabled !== false,
       name: b.name,
       slug: b.slug,
       category: b.category,

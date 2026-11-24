@@ -491,6 +491,11 @@ export class UpdateServiceChargeDto {
   @IsNumber()
   @Min(0)
   fixedKobo?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  waitlistEnabled?: boolean;
 }
 
 
