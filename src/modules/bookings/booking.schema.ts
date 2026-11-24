@@ -162,6 +162,21 @@ export class Booking {
   @Prop({ type: String, default: '' })
   location: string;
 
+  @Prop({ type: String, default: '' })
+  roomNumber: string;
+
+  @Prop({ type: Number, default: 0 })
+  workerPayoutKobo: number;
+
+  @Prop({ type: Number, default: 1 })
+  workerCount: number;
+
+  @Prop({ type: [String], default: [] })
+  workerIds: string[];
+
+  @Prop({ type: [Object], default: [] })
+  workerBreakdown: { providerId: string; providerName: string; amountKobo: number }[];
+
   @Prop({ type: Number, default: 0 })
   riskScore: number;
 

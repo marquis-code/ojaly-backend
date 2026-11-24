@@ -30,7 +30,7 @@ import { nextSequence } from '../../common/utils/order-number';
 import { randomToken } from '../../common/utils/tokens';
 import { normalizeNigerianPhone } from '../../common/utils/phone';
 import { sanitizeText } from '../../common/utils/sanitize';
-import { addMinutes, localDateKey } from './booking.utils';
+import { addMinutes, calculateWorkerPayout, localDateKey } from './booking.utils';
 import { resolveDateRange, humanRangeLabel, DateRangePreset } from '../../common/utils/dates';
 import { addDays, addMonths } from 'date-fns';
 import {
@@ -261,6 +261,7 @@ export class BookingsService implements OnModuleInit {
     const startAt = new Date(dto.startAt);
     const configuredLocations = business.bookingSettings?.locations || [];
     const location = dto.location ? sanitizeText(dto.location, 100) : '';
+    const roomNumber = dto.roomNumber ? sanitizeText(dto.roomNumber, 50) : '';
     if (location && configuredLocations.length && !configuredLocations.includes(location)) throw new BadRequestException('Choose one of the available booking locations.');
     const risk = await this.risk.assessBooking({ businessId, phone, email: dto.customerEmail || null, amountKobo: service.priceKobo, startAt, serviceId: service._id.toString(), reference: `${phone}:${startAt.toISOString()}` });
     const provider = await this.resolveProvider(businessId, service, dto.providerId);
@@ -398,6 +399,12 @@ export class BookingsService implements OnModuleInit {
           addOns,
           status: shouldConfirm ? 'confirmed' : 'pending',
           source: effectiveSource,
+          location: location || '',
+          roomNumber: roomNumber || '',
+          workerPayoutKobo: calculateWorkerPayout(service.name, 1),
+          workerCount: 1,
+          workerIds: [String(provider._id)],
+          workerBreakdown: [{ providerId: String(provider._id), providerName: provider.name, amountKobo: calculateWorkerPayout(service.name, 1) }],
           notes: sanitizeText(dto.notes, 2000),
           subtotalKobo: packageRedemption ? 0 : subtotalKobo,
           serviceChargeKobo: packageRedemption ? 0 : serviceChargeKobo,
@@ -564,6 +571,7 @@ export class BookingsService implements OnModuleInit {
     const startAt = new Date(dto.startAt);
     const configuredLocations = business.bookingSettings?.locations || [];
     const location = dto.location ? sanitizeText(dto.location, 100) : '';
+    const roomNumber = dto.roomNumber ? sanitizeText(dto.roomNumber, 50) : '';
     if (location && configuredLocations.length && !configuredLocations.includes(location)) {
       throw new BadRequestException('Choose one of the available booking locations.');
     }
@@ -636,6 +644,8 @@ export class BookingsService implements OnModuleInit {
       durationMinutes,
       timezone,
       location,
+      roomNumber,
+      workerPayoutKobo: calculateWorkerPayout(service.name, 1),
       subtotalKobo,
       discountKobo,
       promotion,
@@ -747,6 +757,11 @@ export class BookingsService implements OnModuleInit {
           status: 'confirmed',
           source: draft.effectiveSource || (draft.marketplaceCampus ? 'marketplace' : 'storefront'),
           location: draft.location || '',
+          roomNumber: draft.roomNumber || '',
+          workerPayoutKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1),
+          workerCount: 1,
+          workerIds: [String(draft.providerId || '')].filter(Boolean),
+          workerBreakdown: [{ providerId: String(draft.providerId || ''), providerName: draft.providerName || '', amountKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1) }],
           notes: sanitizeText(draft.notes, 2000),
           subtotalKobo: Number(draft.subtotalKobo || 0),
           serviceChargeKobo: Number(draft.serviceChargeKobo || 0),
@@ -907,8 +922,15 @@ export class BookingsService implements OnModuleInit {
     };
   }
 
-  async updateStatus(userId: string, businessId: string, id: string, status: BookingStatus, reason?: string) {
-    if (status === 'completed') return this.complete(userId, businessId, id);
+  async updateStatus(
+    userId: string,
+    businessId: string,
+    id: string,
+    status: BookingStatus,
+    reason?: string,
+    opts?: { workerCount?: number; secondProviderId?: string },
+  ) {
+    if (status === 'completed') return this.complete(userId, businessId, id, opts);
     const booking = await this.bookings.findOne({ _id: id, businessId }).exec();
     if (!booking) throw new NotFoundException('Booking not found.');
     if (booking.status === 'completed') {
@@ -1055,7 +1077,12 @@ export class BookingsService implements OnModuleInit {
     };
   }
 
-  async complete(userId: string, businessId: string, id: string) {
+  async complete(
+    userId: string,
+    businessId: string,
+    id: string,
+    opts?: { workerCount?: number; secondProviderId?: string },
+  ) {
     const booking = await this.bookings.findOne({ _id: id, businessId }).exec();
     if (!booking) throw new NotFoundException('Booking not found.');
     if (booking.status === 'cancelled') throw new BadRequestException('A cancelled booking cannot be completed.');
@@ -1144,6 +1171,31 @@ export class BookingsService implements OnModuleInit {
           { $inc: { totalSpentKobo: total, orderCount: 1 }, $set: { lastPurchaseAt: new Date() } },
           { session },
         ).exec();
+        const workerCount = (opts?.workerCount === 2) ? 2 : (booking.workerCount || 1);
+        const workerPayoutPerPerson = calculateWorkerPayout(booking.serviceName, workerCount as 1 | 2);
+        const workerBreakdown = [
+          { providerId: booking.providerId, providerName: booking.providerName, amountKobo: workerPayoutPerPerson },
+        ];
+        const workerIds = [booking.providerId];
+        if (workerCount === 2) {
+          const secondId = opts?.secondProviderId || (booking.workerIds && booking.workerIds[1]);
+          if (secondId) {
+            const secondProvider = await this.providers.findById(secondId).lean().exec();
+            if (secondProvider) {
+              workerIds.push(String(secondProvider._id));
+              workerBreakdown.push({
+                providerId: String(secondProvider._id),
+                providerName: secondProvider.name,
+                amountKobo: workerPayoutPerPerson,
+              });
+            }
+          }
+        }
+        booking.workerCount = workerCount;
+        booking.workerPayoutKobo = workerPayoutPerPerson * workerBreakdown.length;
+        booking.workerIds = workerIds;
+        booking.workerBreakdown = workerBreakdown;
+
         booking.status = 'completed';
         booking.completedAt = new Date();
         booking.saleId = createdSale._id.toString();
@@ -1243,9 +1295,41 @@ export class BookingsService implements OnModuleInit {
     const provider = await this.providers.findById(booking.providerId).lean().exec();
     const providerPhone = provider?.phone || business.whatsappNumber || business.publicPhone;
     const bookingUrl = `${this.config.get('appUrl')}/booking/${booking.publicToken}`;
-    const where = booking.location ? ` at ${booking.location}` : '';
-    const providerText = `New booking with ${business.name}: ${booking.customerName} booked ${booking.serviceName} with ${booking.providerName} for ${when}${where}. Ref ${booking.bookingNumber}. Total ${formatNaira(booking.priceKobo)}. View: ${bookingUrl}`;
-    const customerText = `Booking confirmed with ${business.name}: ${booking.serviceName} with ${booking.providerName} on ${when}${where}. Ref ${booking.bookingNumber}. Manage: ${bookingUrl}`;
+
+    const room = (booking as any).roomNumber ? String((booking as any).roomNumber).trim() : '';
+    const loc = booking.location ? booking.location.trim() : '';
+    const locationAndRoom = [loc, room ? `Room ${room.replace(/^room\s*/i, '')}` : ''].filter(Boolean).join(' · ');
+
+    const locationLine = locationAndRoom ? `\n🚪 *Room / Location:* ${locationAndRoom}` : '';
+    const phoneLine = `\n📞 *Customer Phone:* ${booking.customerPhone}`;
+    const notesLine = booking.notes ? `\n📝 *Notes:* ${booking.notes}` : '';
+    const payStatus = booking.paymentStatus === 'paid' ? 'Paid' : booking.amountPaidKobo > 0 ? `Partial · ${formatNaira(booking.amountPaidKobo)} paid` : 'Unpaid';
+
+    const providerText = `*🔔 New Booking · ${business.name}*
+
+👤 *Customer:* ${booking.customerName}${phoneLine}${locationLine}
+🛠 *Service:* ${booking.serviceName}
+👷 *Assigned to:* ${booking.providerName}
+📅 *When:* ${when}
+💰 *Total:* ${formatNaira(booking.priceKobo)} (${payStatus})
+🔖 *Booking Ref:* ${booking.bookingNumber}${notesLine}
+
+🔗 *View booking:*
+${bookingUrl}`;
+
+    const customerText = `*✅ Booking Confirmed · ${business.name}*
+
+Hi ${booking.customerName.split(' ')[0]}! Your booking with ${business.name} is confirmed:
+
+🛠 *Service:* ${booking.serviceName}
+👷 *Provider:* ${booking.providerName}
+📅 *When:* ${when}${locationLine}
+💰 *Total:* ${formatNaira(booking.priceKobo)}
+🔖 *Booking Ref:* ${booking.bookingNumber}
+
+🔗 *Manage booking:*
+${bookingUrl}`;
+
     const send = async (phone: string | null | undefined, text: string) => {
       if (!phone) return;
       const result = await this.whatsapp.send({ businessId: booking.businessId, phone, text }).catch(() => ({ sent: false }));
@@ -1336,6 +1420,11 @@ export class BookingsService implements OnModuleInit {
       discountKobo: booking.discountKobo || 0,
       promotionLabel: booking.promotionLabel || null,
       location: booking.location || '',
+      roomNumber: (booking as any).roomNumber || '',
+      workerPayoutKobo: (booking as any).workerPayoutKobo || 0,
+      workerCount: (booking as any).workerCount || 1,
+      workerIds: (booking as any).workerIds || [],
+      workerBreakdown: (booking as any).workerBreakdown || [],
       subtotalKobo: booking.subtotalKobo || booking.priceKobo,
       serviceChargeKobo: booking.serviceChargeKobo || 0,
       serviceChargePercent: booking.serviceChargePercent || 0,

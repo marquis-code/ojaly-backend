@@ -40,12 +40,16 @@ export class PayrollService {
     const providers = await this.providers.find({ businessId, isActive: true, salaryEnabled: true, ...providerFilter }).lean().exec();
     if (!providers.length) throw new BadRequestException(`No active team members are set to ${frequency.replace('_', ' ')} pay.`);
     const ids = providers.map((p) => String(p._id));
-    const bookings = await this.bookings.find({ businessId, providerId: { $in: ids }, startAt: { $gte: period.start, $lt: period.end } }).select('providerId status').lean().exec();
+    const bookings = await this.bookings.find({
+      businessId,
+      $or: [{ providerId: { $in: ids } }, { workerIds: { $in: ids } }],
+      startAt: { $gte: period.start, $lt: period.end },
+    }).select('providerId workerIds workerBreakdown workerPayoutKobo serviceName status').lean().exec();
     const totalDays = Math.max(1, Math.round((period.end.getTime() - period.start.getTime()) / DAY));
     const items = providers.map((provider): PayrollItem | null => {
       const startDate = provider.salaryStartDate ? new Date(`${provider.salaryStartDate}T00:00:00+01:00`) : null;
       if (startDate && startDate.getTime() >= period.end.getTime()) return null;
-      const own = bookings.filter((b) => b.providerId === String(provider._id));
+      const own = bookings.filter((b) => b.providerId === String(provider._id) || ((b as any).workerIds || []).includes(String(provider._id)));
       const completedJobs = own.filter((b) => b.status === 'completed').length;
       const assignedJobs = own.length;
       const rate = provider.payRateKobo || provider.monthlySalaryKobo || 0;
@@ -53,7 +57,18 @@ export class PayrollService {
       let gross = rate;
       if (frequency === 'per_service') {
         units = completedJobs;
-        gross = rate * units;
+        let totalWorkerPay = 0;
+        for (const job of own.filter((b) => b.status === 'completed')) {
+          const breakdown = (job as any).workerBreakdown?.find((w: any) => w.providerId === String(provider._id));
+          if (breakdown && breakdown.amountKobo) {
+            totalWorkerPay += breakdown.amountKobo;
+          } else if ((job as any).workerPayoutKobo) {
+            totalWorkerPay += (job as any).workerPayoutKobo;
+          } else {
+            totalWorkerPay += rate;
+          }
+        }
+        gross = totalWorkerPay > 0 ? totalWorkerPay : rate * units;
       } else {
         const lateStart = startDate && startDate.getTime() > period.start.getTime();
         if (frequency === 'daily' && lateStart) return null;

@@ -79,7 +79,10 @@ export class BookingsController {
     @Param('id') id: string,
     @Body() dto: BookingStatusDto,
   ) {
-    return this.bookings.updateStatus(user.id, businessId, id, dto.status, dto.reason);
+    return this.bookings.updateStatus(user.id, businessId, id, dto.status, dto.reason, {
+      workerCount: dto.workerCount,
+      secondProviderId: dto.secondProviderId,
+    });
   }
 
   @Get(':id/roster')

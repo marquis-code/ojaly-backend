@@ -62,6 +62,8 @@ export class WaitlistService {
       preferredFrom: from,
       preferredTo: to,
       preferredStartAt: dto.preferredStartAt ? new Date(dto.preferredStartAt) : null,
+      location: dto.location ? sanitizeText(dto.location, 100) : '',
+      roomNumber: dto.roomNumber ? sanitizeText(dto.roomNumber, 50) : '',
       notes: sanitizeText(dto.notes, 500),
       status: 'waiting',
       amountKobo,
@@ -169,15 +171,24 @@ export class WaitlistService {
     const phone = business.whatsappNumber || business.publicPhone;
     if (!phone) return;
     const when = `${entry.preferredFrom.toISOString().slice(0, 10)} – ${entry.preferredTo.toISOString().slice(0, 10)}`;
-    const pay = entry.paymentStatus === 'paid' ? ` Payment received: ${formatNaira(entry.amountKobo)}.` : '';
+    const pay = entry.paymentStatus === 'paid' ? ` (${formatNaira(entry.amountKobo)} paid)` : '';
+    const room = (entry as any).roomNumber ? String((entry as any).roomNumber).trim() : '';
+    const loc = (entry as any).location ? String((entry as any).location).trim() : '';
+    const locationAndRoom = [loc, room ? `Room ${room.replace(/^room\s*/i, '')}` : ''].filter(Boolean).join(' · ');
+    const locLine = locationAndRoom ? `\n🚪 *Room / Location:* ${locationAndRoom}` : '';
+
     await this.whatsapp.sendTextDirect(
       entry.businessId,
       phone,
-      `🕒 New waitlist request${pay}
+      `*🕒 New Waitlist Request · ${business.name}*
 
-${entry.customerName} (${entry.customerPhone}) wants ${entry.serviceName} between ${when}.
+👤 *Customer:* ${entry.customerName}
+📞 *Phone:* ${entry.customerPhone}${locLine}
+🛠 *Service:* ${entry.serviceName}${pay}
+📅 *Preferred Dates:* ${when}
 
-Open the waitlist in Ojaly: ${this.configUrl()}/app/bookings/waitlist`,
+🔗 *Open waitlist in Ojaly:*
+${this.configUrl()}/app/bookings/waitlist`,
     ).catch(() => undefined);
   }
 
@@ -196,13 +207,14 @@ Open the waitlist in Ojaly: ${this.configUrl()}/app/bookings/waitlist`,
   }
 
   private view(entry: WaitlistEntry | (WaitlistEntry & { _id: unknown })) {
-    const e = entry as WaitlistEntry & { _id: unknown };
+    const e = entry as any;
     return {
       id: String(e._id), serviceId: e.serviceId, serviceName: e.serviceName,
       quantity: e.quantity || 1, quantityLabel: e.quantityLabel || '', unitPriceKobo: e.unitPriceKobo || 0,
       providerId: e.providerId, providerName: e.providerName,
       customerName: e.customerName, customerPhone: e.customerPhone, customerEmail: e.customerEmail,
       preferredFrom: e.preferredFrom, preferredTo: e.preferredTo, preferredStartAt: e.preferredStartAt,
+      location: e.location || '', roomNumber: e.roomNumber || '',
       notes: e.notes, status: e.status, notifiedAt: e.notifiedAt, customerId: e.customerId,
       paymentStatus: e.paymentStatus || 'not_required', amountKobo: e.amountKobo || 0,
       paymentReference: e.paymentReference || null, paidAt: e.paidAt || null, refundedKobo: e.refundedKobo || 0, createdAt: e.createdAt,

@@ -50,6 +50,12 @@ export class CreateBookingDto {
   @MaxLength(100)
   location?: string;
 
+  @ApiPropertyOptional({ description: 'Customer room or unit number, e.g. Room 204' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  roomNumber?: string;
+
   @ApiPropertyOptional({ description: 'Campus marketplace attribution, e.g. UNILAG' })
   @IsString()
   @IsOptional()
@@ -134,6 +140,15 @@ export class BookingStatusDto {
   @IsOptional()
   @MaxLength(500)
   reason?: string;
+
+  @ApiPropertyOptional({ description: 'Worker count for steaming job (1 or 2)' })
+  @IsOptional()
+  workerCount?: number;
+
+  @ApiPropertyOptional({ description: 'Optional second providerId when 2 workers steam together' })
+  @IsString()
+  @IsOptional()
+  secondProviderId?: string;
 }
 
 export class BookingQueryDto {

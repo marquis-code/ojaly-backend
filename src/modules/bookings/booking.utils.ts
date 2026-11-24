@@ -75,3 +75,43 @@ export function isValidLocalDate(date: string): boolean {
 export function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60000);
 }
+
+/**
+ * Calculates worker compensation per person according to the service type and worker count:
+ * 1.) 1 person steaming a Full (empty or not) 4 man room gets 10k (1,000,000 kobo)
+ * 2.) 2 people steaming a Full (empty or not) 4 man room together get 5k each (500,000 kobo)
+ * 3.) 1 person steaming a Full (empty or not) 6 man room gets 12k (1,200,000 kobo)
+ * 4.) 2 people steaming a Full (empty or not) 6 man room together get 6k each (600,000 kobo)
+ * 5.) Basic double bunk package: 2k (200,000 kobo)
+ * 6.) Premium package double bunk: 3k (300,000 kobo)
+ * 7.) Basic single bunk package: 1k (100,000 kobo)
+ * 8.) Premium package single bunk: 1,500 (150,000 kobo)
+ */
+export function calculateWorkerPayout(serviceName: string, workerCount: 1 | 2 = 1): number {
+  const norm = (serviceName || '').toLowerCase();
+  // Full 4-man room (empty or not)
+  if (norm.includes('4-man') || norm.includes('4 man')) {
+    return workerCount === 2 ? 500000 : 1000000;
+  }
+  // Full 6-man room (empty or not)
+  if (norm.includes('6-man') || norm.includes('6 man')) {
+    return workerCount === 2 ? 600000 : 1200000;
+  }
+  // Premium double bunk
+  if (norm.includes('premium') && norm.includes('double bunk')) {
+    return 300000;
+  }
+  // Basic double bunk
+  if (norm.includes('double bunk')) {
+    return 200000;
+  }
+  // Premium single bunk
+  if (norm.includes('premium') && norm.includes('single bunk')) {
+    return 150000;
+  }
+  // Basic single bunk
+  if (norm.includes('single bunk')) {
+    return 100000;
+  }
+  return 0;
+}

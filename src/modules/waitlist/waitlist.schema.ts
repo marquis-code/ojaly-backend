@@ -55,6 +55,12 @@ export class WaitlistEntry {
   @Prop({ type: String, default: '' })
   notes: string;
 
+  @Prop({ type: String, default: '' })
+  location: string;
+
+  @Prop({ type: String, default: '' })
+  roomNumber: string;
+
   @Prop({ type: String, enum: ['waiting', 'notified', 'booked', 'cancelled'], default: 'waiting', index: true })
   status: WaitlistStatus;
 

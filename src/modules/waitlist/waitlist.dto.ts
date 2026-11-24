@@ -50,6 +50,18 @@ export class CreateWaitlistDto {
   @MaxLength(500)
   notes?: string;
 
+  @ApiPropertyOptional({ description: 'Hostel or location' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  location?: string;
+
+  @ApiPropertyOptional({ description: 'Room or unit number' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  roomNumber?: string;
+
   @ApiPropertyOptional()
   @Type(() => Number)
   @IsInt()
