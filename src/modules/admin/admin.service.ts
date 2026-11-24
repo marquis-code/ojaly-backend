@@ -263,6 +263,10 @@ export class AdminService {
           products: productCounts.find((p) => p._id === String(b._id))?.count || 0,
           sales: saleCounts.find((s) => s._id === String(b._id))?.count || 0,
           revenueKobo: saleCounts.find((s) => s._id === String(b._id))?.revenue || 0,
+          serviceChargeEnabled: Boolean(b.serviceChargeEnabled),
+          serviceChargeType: b.serviceChargeType || 'percent',
+          serviceChargePercent: b.serviceChargePercent || 0,
+          serviceChargeFixedKobo: b.serviceChargeFixedKobo || 0,
           createdAt: b.createdAt,
         };
       }),
