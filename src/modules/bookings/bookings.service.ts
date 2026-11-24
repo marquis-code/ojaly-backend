@@ -140,8 +140,8 @@ export class BookingsService implements OnModuleInit {
       const to = new Date(`${query.date}T23:59:59+01:00`);
       filter.startAt = { $gte: from, $lte: to };
     } else {
-      if (query.from) filter.startAt = { ...(filter.startAt || {}), $gte: new Date(query.from) };
-      if (query.to) filter.startAt = { ...(filter.startAt || {}), $lte: new Date(query.to) };
+      if (query.from) filter.startAt = { ...(filter.startAt || {}), $gte: new Date(query.from.length === 10 ? `${query.from}T00:00:00+01:00` : query.from) };
+      if (query.to) filter.startAt = { ...(filter.startAt || {}), $lte: new Date(query.to.length === 10 ? `${query.to}T23:59:59.999+01:00` : query.to) };
     }
     const page = query.page || 1;
     const limit = query.limit || 100;
