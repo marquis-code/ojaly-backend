@@ -223,9 +223,24 @@ export class AdminController {
     return this.affiliates.adminListPayouts(query);
   }
 
+  @Get('payouts')
+  payouts(@Query() query: AdminPayoutQueryDto) {
+    return this.affiliates.adminListPayouts(query);
+  }
+
   @PlatformRoles('super_admin')
   @Patch('affiliate-payouts/:id')
   updateAffiliatePayout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AdminUpdatePayoutDto,
+  ) {
+    return this.affiliates.adminUpdatePayout(user.id, id, dto);
+  }
+
+  @PlatformRoles('super_admin')
+  @Patch('payouts/:id')
+  updatePayout(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: AdminUpdatePayoutDto,
