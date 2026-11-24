@@ -270,12 +270,13 @@ export class BookingsService implements OnModuleInit {
     const effectiveSource = marketplaceCampus ? 'marketplace' : source;
     if (!location && configuredLocations.length && ['storefront', 'marketplace'].includes(effectiveSource)) throw new BadRequestException('Choose a booking location.');
     const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+    const quantity = service.quantityEnabled ? Math.min(Math.max(1, service.maxQuantity || 20), Math.max(service.minQuantity || 1, Number(dto.quantity || 1))) : 1;
     const serviceDuration = service.durationMinutes > 0 ? service.durationMinutes : Math.max(5, business.bookingSettings?.slotIntervalMinutes || 30);
-    const durationMinutes = overrides?.durationMinutes ?? serviceDuration + addonMinutes;
+    const durationMinutes = overrides?.durationMinutes ?? serviceDuration * quantity + addonMinutes;
     const timezone = business.timezone || 'Africa/Lagos';
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes, { ignoreWindow: effectiveSource !== 'storefront' && effectiveSource !== 'marketplace' });
 
-    const subtotalKobo = overrides?.priceKobo ?? service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+    const subtotalKobo = overrides?.priceKobo ?? service.priceKobo * quantity + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
     const promotion = packageRedemption
       ? null
       : (await this.promotions.platformDiscount(subtotalKobo).catch(() => null)) || await this.promotions.newCustomerDiscount({
@@ -387,6 +388,9 @@ export class BookingsService implements OnModuleInit {
           blockStartAt,
           blockEndAt,
           durationMinutes,
+          quantity,
+          quantityLabel: service.quantityEnabled ? (service.quantityLabel || 'Quantity') : '',
+          unitPriceKobo: service.priceKobo,
           capacity: service.maxBookingsPerSlot || 1,
           bufferBeforeMinutes: service.bufferBeforeMinutes || 0,
           bufferAfterMinutes: service.bufferAfterMinutes || 0,
@@ -571,12 +575,13 @@ export class BookingsService implements OnModuleInit {
     if (!location && configuredLocations.length) throw new BadRequestException('Choose a booking location.');
 
     const addonMinutes = addOns.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+    const quantity = service.quantityEnabled ? Math.min(Math.max(1, service.maxQuantity || 20), Math.max(service.minQuantity || 1, Number(dto.quantity || 1))) : 1;
     const serviceDuration = service.durationMinutes > 0 ? service.durationMinutes : Math.max(5, business.bookingSettings?.slotIntervalMinutes || 30);
-    const durationMinutes = serviceDuration + addonMinutes;
+    const durationMinutes = serviceDuration * quantity + addonMinutes;
     const timezone = business.timezone || 'Africa/Lagos';
     await this.availability.assertSlot(businessId, service._id.toString(), startAt, String(provider._id), timezone, durationMinutes);
 
-    const subtotalKobo = service.priceKobo + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
+    const subtotalKobo = service.priceKobo * quantity + addOns.reduce((sum, a) => sum + a.priceKobo, 0);
     const promotion = packageRedemption
       ? null
       : (await this.promotions.platformDiscount(subtotalKobo).catch(() => null)) || await this.promotions.newCustomerDiscount({
@@ -624,6 +629,8 @@ export class BookingsService implements OnModuleInit {
       service,
       provider,
       addOns,
+      quantity,
+      quantityLabel: service.quantityEnabled ? (service.quantityLabel || 'Quantity') : '',
       phone,
       startAt,
       durationMinutes,
@@ -729,6 +736,9 @@ export class BookingsService implements OnModuleInit {
           blockStartAt,
           blockEndAt,
           durationMinutes,
+          quantity: Number(draft.quantity || 1),
+          quantityLabel: draft.quantityLabel || '',
+          unitPriceKobo: Number(draft.unitPriceKobo || service.priceKobo),
           capacity: service.maxBookingsPerSlot || 1,
           bufferBeforeMinutes: service.bufferBeforeMinutes || 0,
           bufferAfterMinutes: service.bufferAfterMinutes || 0,
@@ -1089,8 +1099,8 @@ export class BookingsService implements OnModuleInit {
             name: booking.serviceName,
             variantName: booking.addOns.map((a) => a.name).join(', '),
             sku: '',
-            quantity: 1,
-            unitPriceKobo: total,
+            quantity: booking.quantity || 1,
+            unitPriceKobo: Math.round(total / Math.max(1, booking.quantity || 1)),
             unitCostKobo: 0,
             discountKobo: 0,
             lineTotalKobo: total,
@@ -1306,6 +1316,9 @@ export class BookingsService implements OnModuleInit {
       startAt: booking.startAt,
       endAt: booking.endAt,
       durationMinutes: booking.durationMinutes,
+      quantity: booking.quantity || 1,
+      quantityLabel: booking.quantityLabel || '',
+      unitPriceKobo: booking.unitPriceKobo || 0,
       capacity: booking.capacity || 1,
       packagePurchaseId: booking.packagePurchaseId,
       packageCode: booking.packageCode,

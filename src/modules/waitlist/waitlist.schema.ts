@@ -19,6 +19,15 @@ export class WaitlistEntry {
   @Prop({ type: String, required: true })
   serviceName: string;
 
+  @Prop({ type: Number, default: 1 })
+  quantity: number;
+
+  @Prop({ type: String, default: '' })
+  quantityLabel: string;
+
+  @Prop({ type: Number, default: 0 })
+  unitPriceKobo: number;
+
   @Prop({ type: String, default: null })
   providerId: string | null;
 

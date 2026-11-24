@@ -102,6 +102,15 @@ export class Booking {
   @Prop({ type: Number, required: true })
   durationMinutes: number;
 
+  @Prop({ type: Number, default: 1, min: 1 })
+  quantity: number;
+
+  @Prop({ type: String, default: '' })
+  quantityLabel: string;
+
+  @Prop({ type: Number, default: 0 })
+  unitPriceKobo: number;
+
   @Prop({ type: Number, default: 1 })
   capacity: number;
 

@@ -46,6 +46,18 @@ export class Service {
   @Prop({ type: Boolean, default: true })
   showDuration: boolean;
 
+  @Prop({ type: Boolean, default: false })
+  quantityEnabled: boolean;
+
+  @Prop({ type: String, default: 'Quantity' })
+  quantityLabel: string;
+
+  @Prop({ type: Number, default: 1, min: 1, max: 100 })
+  minQuantity: number;
+
+  @Prop({ type: Number, default: 20, min: 1, max: 100 })
+  maxQuantity: number;
+
   @Prop({ type: Number, default: 0, min: 0, max: 240 })
   bufferBeforeMinutes: number;
 

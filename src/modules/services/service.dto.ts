@@ -69,6 +69,27 @@ export class CreateServiceDto {
   showDuration?: boolean;
 
   @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  quantityEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  quantityLabel?: string;
+
+  @ApiPropertyOptional()
+  @IsInt() @Min(1) @Max(100)
+  @IsOptional()
+  minQuantity?: number;
+
+  @ApiPropertyOptional()
+  @IsInt() @Min(1) @Max(100)
+  @IsOptional()
+  maxQuantity?: number;
+
+  @ApiPropertyOptional()
   @IsInt()
   @Min(0)
   @Max(240)

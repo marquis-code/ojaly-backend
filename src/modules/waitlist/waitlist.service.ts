@@ -43,12 +43,16 @@ export class WaitlistService {
     const business = await this.businesses.findById(businessId).lean().exec();
     let customer = await this.customers.findOne({ businessId, phone }).exec();
     if (!customer) customer = await this.customers.create({ businessId, name: sanitizeText(dto.customerName, 100), phone, email: dto.customerEmail || null, totalSpentKobo: 0, outstandingKobo: 0, walletBalanceKobo: 0 });
+    const quantity = service.quantityEnabled ? Math.min(Math.max(1, service.maxQuantity || 20), Math.max(service.minQuantity || 1, Number(dto.quantity || 1))) : 1;
     const paymentEnabled = Boolean(business?.bookingSettings?.waitlistPaymentEnabled) && service.priceKobo > 0;
-    const amountKobo = paymentEnabled ? (service.requiresDeposit ? Math.min(service.priceKobo, service.depositKobo || 0) : service.priceKobo) : 0;
+    const amountKobo = paymentEnabled ? (service.requiresDeposit ? Math.min(service.priceKobo * quantity, (service.depositKobo || 0) * quantity) : service.priceKobo * quantity) : 0;
     const entry = await this.entries.create({
       businessId,
       serviceId: service._id.toString(),
       serviceName: service.name,
+      quantity,
+      quantityLabel: service.quantityEnabled ? (service.quantityLabel || 'Quantity') : '',
+      unitPriceKobo: service.priceKobo,
       providerId: dto.providerId || null,
       providerName: null,
       customerId: customer?._id.toString() || null,
@@ -195,6 +199,7 @@ Open the waitlist in Ojaly: ${this.configUrl()}/app/bookings/waitlist`,
     const e = entry as WaitlistEntry & { _id: unknown };
     return {
       id: String(e._id), serviceId: e.serviceId, serviceName: e.serviceName,
+      quantity: e.quantity || 1, quantityLabel: e.quantityLabel || '', unitPriceKobo: e.unitPriceKobo || 0,
       providerId: e.providerId, providerName: e.providerName,
       customerName: e.customerName, customerPhone: e.customerPhone, customerEmail: e.customerEmail,
       preferredFrom: e.preferredFrom, preferredTo: e.preferredTo, preferredStartAt: e.preferredStartAt,

@@ -66,6 +66,14 @@ export class CreateBookingDto {
   @IsString({ each: true })
   @IsOptional()
   addOnNames?: string[];
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, description: 'Number of service units, e.g. bunks' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  quantity?: number;
 }
 
 export class CreatePublicBookingDto extends CreateBookingDto {

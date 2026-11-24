@@ -57,6 +57,14 @@ export class CreateWaitlistDto {
   @Max(365)
   @IsOptional()
   days?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  quantity?: number;
 }
 
 export class UpdateWaitlistDto {
