@@ -41,6 +41,7 @@ import {
   SuspendBusinessDto,
   UpdatePlanDto,
   UpdateServiceChargeDto,
+  UpdateDirectTransferDto,
 } from './dto/admin.dto';
 
 @Injectable()
@@ -466,6 +467,46 @@ export class AdminService {
       providerFee: {
         enabled: business.providerFeeEnabled, type: business.providerFeeType,
         percent: business.providerFeePercent, fixedKobo: business.providerFeeFixedKobo,
+      },
+    };
+  }
+
+  async updateDirectTransfer(actorId: string, businessId: string, dto: UpdateDirectTransferDto) {
+    const business = await this.businesses.findById(businessId).exec();
+    if (!business) throw new NotFoundException('Business not found.');
+
+    business.directTransferEnabled = dto.enabled;
+    if (dto.bankName !== undefined) business.directTransferBankName = dto.bankName;
+    if (dto.bankCode !== undefined) business.directTransferBankCode = dto.bankCode;
+    if (dto.accountNumber !== undefined) business.directTransferAccountNumber = dto.accountNumber;
+    if (dto.accountName !== undefined) business.directTransferAccountName = dto.accountName;
+    if (dto.instructions !== undefined) business.directTransferInstructions = dto.instructions;
+    await business.save();
+
+    await this.audit.record({
+      businessId,
+      actorId,
+      actorType: 'platform_admin',
+      action: 'admin.business_direct_transfer',
+      entity: 'business',
+      entityId: businessId,
+      metadata: {
+        enabled: dto.enabled,
+        bankName: dto.bankName,
+        accountNumber: dto.accountNumber,
+        accountName: dto.accountName,
+      },
+    });
+
+    return {
+      updated: true,
+      directTransfer: {
+        enabled: Boolean(business.directTransferEnabled),
+        bankName: business.directTransferBankName || '',
+        bankCode: business.directTransferBankCode || '',
+        accountNumber: business.directTransferAccountNumber || '',
+        accountName: business.directTransferAccountName || '',
+        instructions: business.directTransferInstructions || '',
       },
     };
   }

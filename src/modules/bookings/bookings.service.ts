@@ -34,7 +34,7 @@ import { addMinutes, calculateWorkerPayout, localDateKey } from './booking.utils
 import { resolveDateRange, humanRangeLabel, DateRangePreset } from '../../common/utils/dates';
 import { addDays, addMonths } from 'date-fns';
 import {
-  BookingQueryDto, BookingMetricsQueryDto, CancelBookingDto, CreateBookingDto, CreateRecurringBookingDto, RescheduleBookingDto,
+  BookingQueryDto, BookingMetricsQueryDto, CancelBookingDto, CreateBookingDto, CreateRecurringBookingDto, RescheduleBookingDto, VerifyTransferPaymentDto,
 } from './booking.dto';
 
 @Injectable()
@@ -425,14 +425,23 @@ export class BookingsService implements OnModuleInit {
           packageName: packageRedemption?.packageName || null,
           depositKobo,
           amountPaidKobo: 0,
-          paymentStatus: packageRedemption ? 'paid' : 'unpaid',
+          paymentStatus: packageRedemption ? 'paid' : (dto.paymentMethod === 'direct_transfer' ? 'pending_verification' : 'unpaid'),
+          paymentMethod: dto.paymentMethod || null,
+          transferSenderName: dto.transferSenderName ? sanitizeText(dto.transferSenderName, 100) : null,
           paymentReference: packageRedemption ? `package:${packageRedemption.redemptionCode}` : null,
           paymentExpiresAt,
           seriesId: series?.id || null,
           seriesIndex: series?.index || 0,
           seriesTotal: series?.total || 1,
           createdBy: userId,
-          history: [{ status: shouldConfirm ? 'confirmed' : 'pending', at: new Date(), by: userId, note: 'Booking created' }],
+          history: [{
+            status: shouldConfirm ? 'confirmed' : 'pending',
+            at: new Date(),
+            by: userId,
+            note: dto.paymentMethod === 'direct_transfer'
+              ? `Direct bank transfer submitted by customer (${dto.transferSenderName || 'No sender name'}) · Pending vendor verification`
+              : 'Booking created',
+          }],
         }], { session });
         created = newBooking;
       });
@@ -458,6 +467,29 @@ export class BookingsService implements OnModuleInit {
         data: { bookingId: created._id.toString(), startAt: created.startAt.toISOString(), publicToken: created.publicToken },
       });
       await this.sendConfirmation(created, business as unknown as BusinessDocument).catch(() => undefined);
+      if (dto.paymentMethod === 'direct_transfer') {
+        const vendorPhone = business.whatsappNumber || business.publicPhone;
+        if (vendorPhone) {
+          const locLine = [created.location, created.roomNumber ? `Room ${created.roomNumber.replace(/^room\s*/i, '')}` : ''].filter(Boolean).join(' · ');
+          const whenFormatted = new Intl.DateTimeFormat('en-NG', { timeZone: created.timezone, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(created.startAt);
+          await this.whatsapp.sendTextDirect(
+            businessId,
+            vendorPhone,
+            `*🔔 Action Required: Verify Bank Transfer · ${business.name}*
+
+👤 *Customer:* ${created.customerName} (${created.customerPhone})
+🛠 *Service:* ${created.serviceName}
+📅 *When:* ${whenFormatted}${locLine ? `\n🚪 *Location:* ${locLine}` : ''}
+💰 *Amount to Confirm:* ${formatNaira(created.priceKobo)}
+🏦 *Bank:* ${business.directTransferBankName || 'Bank Transfer'}
+📝 *Sender Name:* ${dto.transferSenderName || 'Not stated'}
+🔖 *Ref:* ${created.bookingNumber}
+
+👉 *Please check your bank app, then approve or reject on Ojaly:*
+${this.config.get('appUrl')}/app/appointments`
+          ).catch(() => undefined);
+        }
+      }
       void this.calendarSync.pushBooking(created).catch(() => undefined);
     }
     return this.view(created);
@@ -504,6 +536,95 @@ export class BookingsService implements OnModuleInit {
     }
 
     return booking;
+  }
+
+  async verifyTransfer(businessId: string, actorId: string, bookingId: string, dto: VerifyTransferPaymentDto) {
+    const booking = await this.bookings.findOne({ _id: bookingId, businessId }).exec();
+    if (!booking) throw new NotFoundException('Booking not found.');
+    const business = await this.businesses.findById(businessId).exec();
+    if (!business) throw new NotFoundException('Business not found.');
+
+    if (dto.action === 'approve') {
+      booking.paymentStatus = 'paid';
+      booking.amountPaidKobo = booking.priceKobo;
+      booking.transferVerifiedAt = new Date();
+      booking.transferVerifiedBy = actorId;
+      booking.transferRejectionReason = null;
+      booking.history.push({
+        status: booking.status,
+        at: new Date(),
+        by: actorId,
+        note: `Direct bank transfer verified and marked as paid by vendor`,
+      });
+      await booking.save();
+
+      if (booking.customerId) {
+        await this.customers.updateOne(
+          { _id: booking.customerId, businessId },
+          { $inc: { totalSpentKobo: booking.priceKobo }, $set: { lastPurchaseAt: new Date() } },
+        ).exec().catch(() => undefined);
+      }
+
+      await this.notifications.create({
+        businessId,
+        type: 'booking',
+        title: `Payment verified · ${booking.bookingNumber}`,
+        message: `Transfer payment for ${booking.customerName} (${formatNaira(booking.priceKobo)}) was approved and marked as paid.`,
+        tone: 'success',
+        data: { bookingId: booking._id.toString(), publicToken: booking.publicToken },
+      }).catch(() => undefined);
+
+      const when = new Intl.DateTimeFormat('en-NG', {
+        timeZone: booking.timezone, weekday: 'short', day: 'numeric', month: 'short',
+        hour: 'numeric', minute: '2-digit',
+      }).format(booking.startAt);
+      const loc = [booking.location, booking.roomNumber ? `Room ${booking.roomNumber.replace(/^room\s*/i, '')}` : ''].filter(Boolean).join(' · ');
+      const locLine = loc ? `\n🚪 *Location:* ${loc}` : '';
+
+      const customerMsg = `*✅ Payment Verified & Confirmed! · ${business.name}*
+
+Hello ${booking.customerName.split(' ')[0]}! Your bank transfer of ${formatNaira(booking.priceKobo)} for *${booking.serviceName}* has been verified and confirmed!
+
+🛠 *Service:* ${booking.serviceName}
+👷 *Team Member:* ${booking.providerName}
+📅 *When:* ${when}${locLine}
+💰 *Amount Paid:* ${formatNaira(booking.priceKobo)}
+🔖 *Booking Ref:* ${booking.bookingNumber}
+
+🔗 *View or manage your booking:*
+${this.config.get('appUrl')}/booking/${booking.publicToken}
+
+Thank you for choosing ${business.name}!`;
+
+      if (booking.customerPhone) {
+        await this.whatsapp.sendTextDirect(businessId, booking.customerPhone, customerMsg).catch(() => undefined);
+      }
+    } else {
+      booking.paymentStatus = 'unpaid';
+      booking.transferRejectionReason = dto.reason || 'Payment could not be verified in bank records';
+      booking.history.push({
+        status: booking.status,
+        at: new Date(),
+        by: actorId,
+        note: `Direct bank transfer rejected: ${dto.reason || 'Payment could not be verified'}`,
+      });
+      await booking.save();
+
+      const customerRejectMsg = `*⚠️ Transfer Verification Update · ${business.name}*
+
+Hello ${booking.customerName.split(' ')[0]}, ${business.name} could not verify your bank transfer for booking *${booking.bookingNumber}* (${booking.serviceName}).
+
+📋 *Reason:* ${dto.reason || 'Payment was not found in bank records.'}
+
+Please check your payment or reach out to ${business.name} on ${business.whatsappNumber || business.publicPhone || 'WhatsApp'}:
+${this.config.get('appUrl')}/booking/${booking.publicToken}`;
+
+      if (booking.customerPhone) {
+        await this.whatsapp.sendTextDirect(businessId, booking.customerPhone, customerRejectMsg).catch(() => undefined);
+      }
+    }
+
+    return this.view(booking);
   }
 
   async cancelUnpaidBooking(bookingId: string, reason = 'Payment not completed') {
@@ -1433,6 +1554,10 @@ ${bookingUrl}`;
       amountPaidKobo: booking.amountPaidKobo,
       refundedKobo: booking.refundedKobo || 0,
       paymentStatus: booking.paymentStatus,
+      paymentMethod: (booking as any).paymentMethod || null,
+      transferSenderName: (booking as any).transferSenderName || null,
+      transferVerifiedAt: (booking as any).transferVerifiedAt || null,
+      transferRejectionReason: (booking as any).transferRejectionReason || null,
       paymentReference: booking.paymentReference,
       seriesId: booking.seriesId,
       seriesIndex: booking.seriesIndex,

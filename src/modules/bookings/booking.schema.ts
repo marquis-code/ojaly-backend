@@ -4,7 +4,7 @@ import { schemaOptions } from '../../common/schemas/schema-options';
 
 export type BookingDocument = HydratedDocument<Booking>;
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-export type BookingPaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
+export type BookingPaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded' | 'pending_verification';
 export type BookingSource = 'storefront' | 'dashboard' | 'whatsapp' | 'walk_in' | 'marketplace';
 
 @Schema({ _id: false })
@@ -219,8 +219,23 @@ export class Booking {
   @Prop({ type: Number, default: 0 })
   refundedKobo: number;
 
-  @Prop({ type: String, enum: ['unpaid', 'deposit_paid', 'paid', 'refunded'], default: 'unpaid', index: true })
+  @Prop({ type: String, enum: ['unpaid', 'deposit_paid', 'paid', 'refunded', 'pending_verification'], default: 'unpaid', index: true })
   paymentStatus: BookingPaymentStatus;
+
+  @Prop({ type: String, default: null })
+  paymentMethod: string | null;
+
+  @Prop({ type: String, default: null })
+  transferSenderName: string | null;
+
+  @Prop({ type: Date, default: null })
+  transferVerifiedAt: Date | null;
+
+  @Prop({ type: String, default: null })
+  transferVerifiedBy: string | null;
+
+  @Prop({ type: String, default: null })
+  transferRejectionReason: string | null;
 
   @Prop({ type: String, default: null, index: true })
   seriesId: string | null;

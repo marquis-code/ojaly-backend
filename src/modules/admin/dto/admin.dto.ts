@@ -498,6 +498,42 @@ export class UpdateServiceChargeDto {
   waitlistEnabled?: boolean;
 }
 
+export class UpdateDirectTransferDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  enabled: boolean;
+
+  @ApiPropertyOptional({ example: 'PalmPay' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: '999991' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  bankCode?: string;
+
+  @ApiPropertyOptional({ example: '9052533031' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  accountNumber?: string;
+
+  @ApiPropertyOptional({ example: 'Oshinowo Ayotomiwa' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  accountName?: string;
+
+  @ApiPropertyOptional({ example: 'Transfer with your name as note' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  instructions?: string;
+}
+
 
 export class UpdatePlatformCampaignDto {
   @ApiProperty() @IsBoolean() enabled: boolean;

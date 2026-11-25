@@ -172,6 +172,25 @@ export class StorefrontService {
       };
     }
 
+    // Direct bank transfer payment fallback
+    if (dto.paymentMethod === 'direct_transfer' && business.directTransferEnabled) {
+      const booking = await this.bookings.createPublic(business._id.toString(), dto);
+      const sellerNumber = business.whatsappNumber || business.publicPhone;
+      const when = new Intl.DateTimeFormat('en-NG', {
+        timeZone: booking.timezone, weekday: 'short', day: 'numeric', month: 'short',
+        hour: 'numeric', minute: '2-digit',
+      }).format(new Date(booking.startAt));
+      const message = `Hello ${business.name}! I booked *${booking.serviceName}* with ${booking.providerName} on ${when} and sent payment via direct transfer.\n\nReference: ${booking.bookingNumber}\nName: ${booking.customerName}\nPhone: ${booking.customerPhone}\n\nManage: ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
+      return {
+        booking,
+        business: this.publicBusiness(business),
+        payment: null,
+        directTransfer: true,
+        whatsappUrl: sellerNumber ? waLink(sellerNumber, message) : null,
+        whatsappMessage: message,
+      };
+    }
+
     // Payment is required. Under NO circumstance should a Booking record be created before payment!
     if (!dto.customerEmail) {
       throw new BadRequestException('Add your email to pay online and secure your booking.');
@@ -398,6 +417,14 @@ export class StorefrontService {
       serviceChargePercent: b.serviceChargePercent || 0,
       serviceChargeFixedKobo: b.serviceChargeFixedKobo || 0,
       serviceChargeWaitlistEnabled: b.serviceChargeWaitlistEnabled !== false,
+      directTransfer: b.directTransferEnabled ? {
+        enabled: true,
+        bankName: b.directTransferBankName || '',
+        bankCode: b.directTransferBankCode || '',
+        accountNumber: b.directTransferAccountNumber || '',
+        accountName: b.directTransferAccountName || '',
+        instructions: b.directTransferInstructions || '',
+      } : null,
       name: b.name,
       slug: b.slug,
       category: b.category,

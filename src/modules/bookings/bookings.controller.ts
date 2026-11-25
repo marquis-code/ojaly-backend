@@ -8,7 +8,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { AvailabilityService } from './availability.service';
 import {
   AvailabilityQueryDto, BookingMetricsQueryDto, BookingQueryDto, BookingStatusDto, CancelBookingDto,
-  CreateBookingDto, CreateRecurringBookingDto, RefundBookingDto, RescheduleBookingDto,
+  CreateBookingDto, CreateRecurringBookingDto, RefundBookingDto, RescheduleBookingDto, VerifyTransferPaymentDto,
 } from './booking.dto';
 
 @ApiTags('Bookings')
@@ -83,6 +83,17 @@ export class BookingsController {
       workerCount: dto.workerCount,
       secondProviderId: dto.secondProviderId,
     });
+  }
+
+  @Patch(':id/verify-transfer')
+  @Permissions(PERMISSIONS.BOOKINGS_WRITE)
+  verifyTransfer(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentBusiness() businessId: string,
+    @Param('id') id: string,
+    @Body() dto: VerifyTransferPaymentDto,
+  ) {
+    return this.bookings.verifyTransfer(businessId, user.id, id, dto);
   }
 
   @Get(':id/roster')

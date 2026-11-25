@@ -24,6 +24,7 @@ import {
   UpdatePlatformCampaignDto,
   UpdateProviderFeeDto,
   UpdateServiceChargeDto,
+  UpdateDirectTransferDto,
 } from './dto/admin.dto';
 import type { AuthenticatedUser } from '../../common/types/auth.types';
 
@@ -122,6 +123,16 @@ export class AdminController {
     @Body() dto: UpdateProviderFeeDto,
   ) {
     return this.admin.updateProviderFee(user.id, id, dto);
+  }
+
+  @PlatformRoles('super_admin')
+  @Patch('businesses/:id/direct-transfer')
+  updateDirectTransfer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateDirectTransferDto,
+  ) {
+    return this.admin.updateDirectTransfer(user.id, id, dto);
   }
 
   @Get('fraud/stats')

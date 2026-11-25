@@ -56,6 +56,17 @@ export class CreateBookingDto {
   @MaxLength(50)
   roomNumber?: string;
 
+  @ApiPropertyOptional({ example: 'direct_transfer' })
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
+
+  @ApiPropertyOptional({ description: 'Sender name as seen on transfer receipt' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  transferSenderName?: string;
+
   @ApiPropertyOptional({ description: 'Campus marketplace attribution, e.g. UNILAG' })
   @IsString()
   @IsOptional()
@@ -127,6 +138,18 @@ export class CancelBookingDto {
   @IsString()
   @IsOptional()
   @MaxLength(500)
+  reason?: string;
+}
+
+export class VerifyTransferPaymentDto {
+  @ApiProperty({ enum: ['approve', 'reject'], example: 'approve' })
+  @IsIn(['approve', 'reject'])
+  action: 'approve' | 'reject';
+
+  @ApiPropertyOptional({ example: 'Payment not found in bank records' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(300)
   reason?: string;
 }
 

@@ -270,6 +270,24 @@ export class Business {
   @Prop({ type: Boolean, default: false })
   customDomainVerified: boolean;
 
+  @Prop({ type: Boolean, default: false })
+  directTransferEnabled: boolean;
+
+  @Prop({ type: String, default: null })
+  directTransferBankName: string | null;
+
+  @Prop({ type: String, default: null })
+  directTransferBankCode: string | null;
+
+  @Prop({ type: String, default: null })
+  directTransferAccountNumber: string | null;
+
+  @Prop({ type: String, default: null })
+  directTransferAccountName: string | null;
+
+  @Prop({ type: String, default: null })
+  directTransferInstructions: string | null;
+
   @Prop({ type: String, default: null })
   embedKey: string | null;
 
