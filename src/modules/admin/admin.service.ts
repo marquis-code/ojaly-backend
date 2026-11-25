@@ -476,6 +476,7 @@ export class AdminService {
     if (!business) throw new NotFoundException('Business not found.');
 
     business.directTransferEnabled = dto.enabled;
+    if (dto.cardPaymentEnabled !== undefined) business.cardPaymentEnabled = Boolean(dto.cardPaymentEnabled);
     if (dto.bankName !== undefined) business.directTransferBankName = dto.bankName;
     if (dto.bankCode !== undefined) business.directTransferBankCode = dto.bankCode;
     if (dto.accountNumber !== undefined) business.directTransferAccountNumber = dto.accountNumber;

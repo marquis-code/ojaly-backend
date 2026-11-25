@@ -273,6 +273,9 @@ export class Business {
   @Prop({ type: Boolean, default: false })
   directTransferEnabled: boolean;
 
+  @Prop({ type: Boolean, default: true })
+  cardPaymentEnabled: boolean;
+
   @Prop({ type: String, default: null })
   directTransferBankName: string | null;
 

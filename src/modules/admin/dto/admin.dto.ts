@@ -503,6 +503,11 @@ export class UpdateDirectTransferDto {
   @IsBoolean()
   enabled: boolean;
 
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  cardPaymentEnabled?: boolean;
+
   @ApiPropertyOptional({ example: 'PalmPay' })
   @IsOptional()
   @IsString()

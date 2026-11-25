@@ -192,6 +192,9 @@ export class StorefrontService {
     }
 
     // Payment is required. Under NO circumstance should a Booking record be created before payment!
+    if (business.cardPaymentEnabled === false && business.directTransferEnabled) {
+      throw new BadRequestException('Online card payment is currently disabled for this business. Please pay via direct bank transfer.');
+    }
     if (!dto.customerEmail) {
       throw new BadRequestException('Add your email to pay online and secure your booking.');
     }
@@ -425,6 +428,7 @@ export class StorefrontService {
         accountName: b.directTransferAccountName || '',
         instructions: b.directTransferInstructions || '',
       } : null,
+      cardPaymentEnabled: b.cardPaymentEnabled !== false,
       name: b.name,
       slug: b.slug,
       category: b.category,
