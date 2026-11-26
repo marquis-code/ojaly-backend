@@ -87,8 +87,9 @@ export function addMinutes(date: Date, minutes: number): Date {
  * 7.) Basic single bunk package: 1k (100,000 kobo)
  * 8.) Premium package single bunk: 1,500 (150,000 kobo)
  */
-export function calculateWorkerPayout(serviceName: string, workerCount: 1 | 2 = 1): number {
+export function calculateWorkerPayout(serviceName: string, workerCount: 1 | 2 = 1, quantity = 1): number {
   const norm = (serviceName || '').toLowerCase();
+  const units = Math.max(1, Number(quantity) || 1);
   // Full 4-man room (empty or not)
   if (norm.includes('4-man') || norm.includes('4 man')) {
     return workerCount === 2 ? 500000 : 1000000;
@@ -99,19 +100,19 @@ export function calculateWorkerPayout(serviceName: string, workerCount: 1 | 2 = 
   }
   // Premium double bunk
   if (norm.includes('premium') && norm.includes('double bunk')) {
-    return 300000;
+    return 300000 * units;
   }
   // Basic double bunk
   if (norm.includes('double bunk')) {
-    return 200000;
+    return 200000 * units;
   }
   // Premium single bunk
   if (norm.includes('premium') && norm.includes('single bunk')) {
-    return 150000;
+    return 150000 * units;
   }
   // Basic single bunk
   if (norm.includes('single bunk')) {
-    return 100000;
+    return 100000 * units;
   }
   return 0;
 }

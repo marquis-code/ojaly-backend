@@ -401,10 +401,10 @@ export class BookingsService implements OnModuleInit {
           source: effectiveSource,
           location: location || '',
           roomNumber: roomNumber || '',
-          workerPayoutKobo: calculateWorkerPayout(service.name, 1),
+          workerPayoutKobo: calculateWorkerPayout(service.name, 1, quantity),
           workerCount: 1,
           workerIds: [String(provider._id)],
-          workerBreakdown: [{ providerId: String(provider._id), providerName: provider.name, amountKobo: calculateWorkerPayout(service.name, 1) }],
+          workerBreakdown: [{ providerId: String(provider._id), providerName: provider.name, amountKobo: calculateWorkerPayout(service.name, 1, quantity) }],
           notes: sanitizeText(dto.notes, 2000),
           subtotalKobo: packageRedemption ? 0 : subtotalKobo,
           serviceChargeKobo: packageRedemption ? 0 : serviceChargeKobo,
@@ -766,7 +766,7 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
       timezone,
       location,
       roomNumber,
-      workerPayoutKobo: calculateWorkerPayout(service.name, 1),
+      workerPayoutKobo: calculateWorkerPayout(service.name, 1, quantity),
       subtotalKobo,
       discountKobo,
       promotion,
@@ -879,10 +879,10 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
           source: draft.effectiveSource || (draft.marketplaceCampus ? 'marketplace' : 'storefront'),
           location: draft.location || '',
           roomNumber: draft.roomNumber || '',
-          workerPayoutKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1),
+          workerPayoutKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1, Number(draft.quantity || 1)),
           workerCount: 1,
           workerIds: [String(draft.providerId || '')].filter(Boolean),
-          workerBreakdown: [{ providerId: String(draft.providerId || ''), providerName: draft.providerName || '', amountKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1) }],
+          workerBreakdown: [{ providerId: String(draft.providerId || ''), providerName: draft.providerName || '', amountKobo: draft.workerPayoutKobo || calculateWorkerPayout(service.name, 1, Number(draft.quantity || 1)) }],
           notes: sanitizeText(draft.notes, 2000),
           subtotalKobo: Number(draft.subtotalKobo || 0),
           serviceChargeKobo: Number(draft.serviceChargeKobo || 0),
@@ -1294,7 +1294,7 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
           { session },
         ).exec();
         const workerCount = (opts?.workerCount === 2) ? 2 : (booking.workerCount || 1);
-        const workerPayoutPerPerson = calculateWorkerPayout(booking.serviceName, workerCount as 1 | 2);
+        const workerPayoutPerPerson = calculateWorkerPayout(booking.serviceName, workerCount as 1 | 2, booking.quantity || 1);
         const workerBreakdown = [
           { providerId: booking.providerId, providerName: booking.providerName, amountKobo: workerPayoutPerPerson },
         ];
@@ -1341,7 +1341,9 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
         this.logger.warn(`Service receipt failed: ${error instanceof Error ? error.message : 'unknown'}`);
       }
     }
-    await this.providers.updateOne({ _id: booking.providerId, businessId }, { $inc: { earningsKobo: booking.providerFeeKobo || 0 } }).exec().catch(() => undefined);
+    for (const worker of booking.workerBreakdown || []) {
+      await this.providers.updateOne({ _id: worker.providerId, businessId }, { $inc: { earningsKobo: worker.amountKobo || 0 } }).exec().catch(() => undefined);
+    }
     const businessForReview = await this.businesses.findById(businessId).lean().exec();
     if (businessForReview) await this.sendReviewRequest(booking, businessForReview as unknown as BusinessDocument).catch(() => undefined);
     return this.view(booking);
