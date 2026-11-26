@@ -204,6 +204,17 @@ export class PaymentsService {
     return { reference, authorizationUrl: initialized.authorizationUrl, amountKobo, publicKey: this.paystack.publicKey };
   }
 
+  async recordVerifiedBankTransfer(businessId: string, bookingId: string, amountKobo: number, email: string | null, actorId: string) {
+    const existing = await this.payments.findOne({ businessId, bookingId, channel: 'bank_transfer', status: 'success' }).lean().exec();
+    if (existing) return existing;
+    const reference = `OJALY-TRF-${Date.now()}-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
+    return this.payments.create({
+      reference, businessId, purpose: 'booking', bookingId, amountKobo, email,
+      status: 'success', channel: 'bank_transfer', paidAt: new Date(), createdBy: actorId,
+      metadata: { directTransfer: true, verifiedBy: actorId },
+    });
+  }
+
   async initializeStorefrontBookingPayment(
     businessId: string,
     customerEmail: string,

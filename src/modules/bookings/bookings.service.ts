@@ -557,6 +557,7 @@ ${this.config.get('appUrl')}/app/appointments`
         note: `Direct bank transfer verified and marked as paid by vendor`,
       });
       await booking.save();
+      await this.payments.recordVerifiedBankTransfer(businessId, booking._id.toString(), booking.priceKobo, booking.customerEmail || null, actorId).catch(() => undefined);
 
       if (booking.customerId) {
         await this.customers.updateOne(
@@ -598,6 +599,14 @@ Thank you for choosing ${business.name}!`;
 
       if (booking.customerPhone) {
         await this.whatsapp.sendTextDirect(businessId, booking.customerPhone, customerMsg).catch(() => undefined);
+      }
+      const vendorTransferPhone = business.whatsappNumber || business.publicPhone;
+      if (vendorTransferPhone) {
+        await this.whatsapp.sendTextDirect(
+          businessId,
+          vendorTransferPhone,
+          `💰 Bank transfer verified\n\n${booking.customerName} paid ${formatNaira(booking.priceKobo)} for ${booking.serviceName}.\nRef: ${booking.bookingNumber}\n${when}`,
+        ).catch(() => undefined);
       }
     } else {
       booking.paymentStatus = 'unpaid';
