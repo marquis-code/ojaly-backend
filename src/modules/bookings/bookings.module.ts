@@ -14,6 +14,7 @@ import { Sale, SaleSchema } from '../sales/sale.schema';
 import { Service, ServiceSchema } from '../services/service.schema';
 import { ServicesModule } from '../services/services.module';
 import { WaitlistModule } from '../waitlist/waitlist.module';
+import { WaitlistEntry, WaitlistSchema } from '../waitlist/waitlist.schema';
 import { PaymentsModule } from '../payments/payments.module';
 import { Payment, PaymentSchema } from '../payments/payment.schema';
 import { PromotionsModule } from '../promotions/promotions.module';
@@ -38,6 +39,7 @@ import { AvailabilityService } from './availability.service';
       { name: Counter.name, schema: CounterSchema },
       { name: Debt.name, schema: DebtSchema },
       { name: Payment.name, schema: PaymentSchema },
+      { name: WaitlistEntry.name, schema: WaitlistSchema },
     ]),
     ProvidersModule,
     ServicesModule,

@@ -22,6 +22,7 @@ import { campusByCode } from '../campus/campus.constants';
 import { DebtsService } from '../debts/debts.service';
 import { ReceiptsService } from '../receipts/receipts.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
+import { WaitlistEntry, WaitlistDocument } from '../waitlist/waitlist.schema';
 import { WhatsappClientService } from '../whatsapp/whatsapp-client.service';
 import { formatNaira } from '../../common/utils/money';
 import { AvailabilityService } from './availability.service';
@@ -80,6 +81,7 @@ export class BookingsService implements OnModuleInit {
     @InjectModel(Sale.name) private readonly sales: Model<SaleDocument>,
     @InjectModel(Counter.name) private readonly counters: Model<CounterDocument>,
     @InjectModel(Debt.name) private readonly debtModel: Model<DebtDocument>,
+    @InjectModel(WaitlistEntry.name) private readonly waitlistModel: Model<WaitlistDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly availability: AvailabilityService,
     private readonly debts: DebtsService,
@@ -188,6 +190,14 @@ export class BookingsService implements OnModuleInit {
       startAt: { $gte: range.from, $lte: range.to },
     }).select('status priceKobo amountPaidKobo source marketplaceCampus customerPhone serviceName startAt createdAt').sort({ startAt: 1 }).lean().exec();
 
+    const paidWaitlist = await this.waitlistModel.find({
+      businessId,
+      paymentStatus: 'paid',
+      status: { $nin: ['cancelled', 'booked'] },
+      paidAt: { $gte: range.from, $lte: range.to },
+    }).select('amountKobo refundedKobo').lean().exec();
+    const waitlistKobo = paidWaitlist.reduce((sum, entry) => sum + Math.max(0, (entry.amountKobo || 0) - (entry.refundedKobo || 0)), 0);
+
     const completed = bookings.filter((b) => b.status === 'completed');
     const pending = bookings.filter((b) => b.status === 'pending');
     const cancelled = bookings.filter((b) => b.status === 'cancelled');
@@ -219,7 +229,9 @@ export class BookingsService implements OnModuleInit {
         cancelled: cancelled.length,
         noShows: noShows.length,
         revenueKobo: completed.reduce((sum, b) => sum + b.priceKobo, 0),
-        collectedKobo: bookings.filter((b) => b.status !== 'cancelled').reduce((sum, b) => sum + (b.amountPaidKobo || 0), 0),
+        collectedKobo: bookings.filter((b) => b.status !== 'cancelled').reduce((sum, b) => sum + (b.amountPaidKobo || 0), 0) + waitlistKobo,
+        waitlistKobo,
+        waitlistCount: paidWaitlist.length,
         marketplaceBookings: marketplace.length,
         marketplaceRevenueKobo: marketplaceCompleted.reduce((sum, b) => sum + b.priceKobo, 0),
         repeatCustomers,

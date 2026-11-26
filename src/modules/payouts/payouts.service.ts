@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Business, BusinessDocument } from '../businesses/business.schema';
 import { Booking, BookingDocument } from '../bookings/booking.schema';
+import { WaitlistEntry, WaitlistDocument } from '../waitlist/waitlist.schema';
 import { WithdrawalRequest, WithdrawalDocument } from './withdrawal.schema';
 
 @Injectable()
@@ -11,22 +12,27 @@ export class PayoutsService {
     @InjectModel(Business.name) private readonly businesses: Model<BusinessDocument>,
     @InjectModel(Booking.name) private readonly bookings: Model<BookingDocument>,
     @InjectModel(WithdrawalRequest.name) private readonly withdrawals: Model<WithdrawalDocument>,
+    @InjectModel(WaitlistEntry.name) private readonly waitlists: Model<WaitlistDocument>,
   ) {}
 
   async summary(businessId: string) {
-    const [business, bookings, requests] = await Promise.all([
+    const [business, bookings, requests, paidWaitlist] = await Promise.all([
       this.businesses.findById(businessId).lean().exec(),
       this.bookings.find({ businessId, status: 'completed', paymentStatus: { $in: ['paid', 'deposit_paid'] } }).select('providerNetKobo amountPaidKobo bookingNumber completedAt').lean().exec(),
       this.withdrawals.find({ businessId }).sort({ createdAt: -1 }).limit(100).lean().exec(),
+      this.waitlists.find({ businessId, paymentStatus: 'paid', status: { $nin: ['cancelled', 'booked'] } }).select('amountKobo refundedKobo').lean().exec(),
     ]);
     const earnedKobo = bookings.reduce((sum, booking) => sum + (booking.providerNetKobo || 0), 0);
     const reservedKobo = requests.filter((request) => ['pending', 'approved', 'paid'].includes(request.status)).reduce((sum, request) => sum + request.amountKobo, 0);
     const paidKobo = requests.filter((request) => request.status === 'paid').reduce((sum, request) => sum + request.amountKobo, 0);
+    const waitlistKobo = paidWaitlist.reduce((sum, entry) => sum + Math.max(0, (entry.amountKobo || 0) - (entry.refundedKobo || 0)), 0);
     const pendingKobo = requests.filter((request) => ['pending', 'approved'].includes(request.status)).reduce((sum, request) => sum + request.amountKobo, 0);
     const account = business?.settlementAccounts?.find((item) => item.id === business.settlementPrimaryAccountId) || business?.settlementAccounts?.[0] || null;
     return {
       earnedKobo, availableKobo: Math.max(0, earnedKobo - reservedKobo), pendingKobo, paidKobo,
       completedBookings: bookings.length,
+      waitlistKobo,
+      waitlistCount: paidWaitlist.length,
       settlementAccount: account,
       requests: requests.map((request) => this.view(request)),
     };
