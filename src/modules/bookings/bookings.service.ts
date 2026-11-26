@@ -296,11 +296,11 @@ export class BookingsService implements OnModuleInit {
       }
     }
 
-    let providerFeeKobo = 0;
-    const providerFeePercent = business.providerFeePercent || 0;
-    if (business.providerFeeEnabled && discountedSubtotalKobo > 0) {
+    let providerFeeKobo = service.workerPayKobo > 0 ? Math.min(discountedSubtotalKobo, service.workerPayKobo * quantity) : 0;
+    const providerFeePercent = 0;
+    if (!providerFeeKobo && business.providerFeeEnabled && discountedSubtotalKobo > 0) {
       if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(discountedSubtotalKobo, business.providerFeeFixedKobo || 0);
-      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * providerFeePercent) / 100));
+      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * (business.providerFeePercent || 0)) / 100));
     }
     const providerNetKobo = Math.max(0, discountedSubtotalKobo - providerFeeKobo);
     const totalKobo = discountedSubtotalKobo + serviceChargeKobo;
@@ -729,11 +729,11 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
       }
     }
 
-    let providerFeeKobo = 0;
-    const providerFeePercent = business.providerFeePercent || 0;
-    if (business.providerFeeEnabled && discountedSubtotalKobo > 0) {
+    let providerFeeKobo = service.workerPayKobo > 0 ? Math.min(discountedSubtotalKobo, service.workerPayKobo * quantity) : 0;
+    const providerFeePercent = 0;
+    if (!providerFeeKobo && business.providerFeeEnabled && discountedSubtotalKobo > 0) {
       if (business.providerFeeType === 'fixed') providerFeeKobo = Math.min(discountedSubtotalKobo, business.providerFeeFixedKobo || 0);
-      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * providerFeePercent) / 100));
+      else providerFeeKobo = Math.min(discountedSubtotalKobo, Math.round((discountedSubtotalKobo * (business.providerFeePercent || 0)) / 100));
     }
     const providerNetKobo = Math.max(0, discountedSubtotalKobo - providerFeeKobo);
     const totalKobo = discountedSubtotalKobo + serviceChargeKobo;
@@ -1214,6 +1214,7 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
       if (!booking.reviewToken) booking.reviewToken = randomToken(24);
       booking.history.push({ status: 'completed', at: new Date(), by: userId, note: `Package ${booking.packageCode}` });
       await booking.save();
+      await this.providers.updateOne({ _id: booking.providerId, businessId }, { $inc: { earningsKobo: booking.providerFeeKobo || 0 } }).exec().catch(() => undefined);
       const packageBusiness = await this.businesses.findById(businessId).lean().exec();
       if (packageBusiness) await this.sendReviewRequest(booking, packageBusiness as unknown as BusinessDocument).catch(() => undefined);
       return this.view(booking);
@@ -1340,6 +1341,7 @@ ${this.config.get('appUrl')}/booking/${booking.publicToken}`;
         this.logger.warn(`Service receipt failed: ${error instanceof Error ? error.message : 'unknown'}`);
       }
     }
+    await this.providers.updateOne({ _id: booking.providerId, businessId }, { $inc: { earningsKobo: booking.providerFeeKobo || 0 } }).exec().catch(() => undefined);
     const businessForReview = await this.businesses.findById(businessId).lean().exec();
     if (businessForReview) await this.sendReviewRequest(booking, businessForReview as unknown as BusinessDocument).catch(() => undefined);
     return this.view(booking);

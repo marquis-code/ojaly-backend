@@ -183,6 +183,8 @@ export class ProvidersService {
       accountName: provider.accountName || null,
       bankAccountLast4: provider.accountNumber ? provider.accountNumber.slice(-4) : null,
       hasBankDetails: Boolean(provider.bankCode && provider.accountNumber),
+      earningsKobo: provider.earningsKobo || 0,
+      paidEarningsKobo: provider.paidEarningsKobo || 0,
     };
   }
 }

@@ -89,6 +89,11 @@ export class CreateServiceDto {
   @IsOptional()
   maxQuantity?: number;
 
+  @ApiPropertyOptional({ description: 'Worker pay per unit/job in kobo' })
+  @IsInt() @Min(0)
+  @IsOptional()
+  workerPayKobo?: number;
+
   @ApiPropertyOptional()
   @IsInt()
   @Min(0)

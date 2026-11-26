@@ -123,6 +123,12 @@ export class Provider {
   @Prop({ type: String, default: null })
   paystackRecipientCode: string | null;
 
+  @Prop({ type: Number, default: 0 })
+  earningsKobo: number;
+
+  @Prop({ type: Number, default: 0 })
+  paidEarningsKobo: number;
+
 }
 
 export const ProviderSchema = SchemaFactory.createForClass(Provider);

@@ -36,6 +36,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { SupportModule } from './modules/support/support.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PayoutsModule } from './modules/payouts/payouts.module';
 import { StorefrontChatModule } from './modules/storefront-chat/storefront-chat.module';
 import { StockModule } from './modules/stock/stock.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -113,6 +114,7 @@ import { JwtModule } from '@nestjs/jwt';
     PromotionsModule,
     SupportModule,
     AnalyticsModule,
+    PayoutsModule,
     StorefrontChatModule,
     StockModule,
     CustomersModule,

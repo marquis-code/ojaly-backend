@@ -58,6 +58,9 @@ export class Service {
   @Prop({ type: Number, default: 20, min: 1, max: 100 })
   maxQuantity: number;
 
+  @Prop({ type: Number, default: 0, min: 0 })
+  workerPayKobo: number;
+
   @Prop({ type: Number, default: 0, min: 0, max: 240 })
   bufferBeforeMinutes: number;
 

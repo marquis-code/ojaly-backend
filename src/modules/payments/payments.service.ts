@@ -763,6 +763,18 @@ export class PaymentsService {
           );
           claimed.bookingId = booking._id.toString();
           await this.payments.updateOne({ _id: claimed._id }, { $set: { bookingId: booking._id.toString() } }).exec();
+          const bookingBusiness = await this.businesses.findById(claimed.businessId).lean().exec();
+          const vendorPhone = bookingBusiness?.whatsappNumber || bookingBusiness?.publicPhone;
+          if (vendorPhone) {
+            const when = new Intl.DateTimeFormat('en-NG', {
+              timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+            }).format(new Date(booking.startAt));
+            await this.whatsapp.sendTextDirect(
+              claimed.businessId,
+              vendorPhone,
+              `💰 New paid booking\n\n${booking.customerName} paid ${formatNaira(claimed.amountKobo)} for ${booking.serviceName}.\n${when}\nRef: ${booking.bookingNumber}\n\nOpen: ${this.config.get('appUrl')}/app/bookings?date=${new Date(booking.startAt).toISOString().slice(0, 10)}`,
+            ).catch(() => undefined);
+          }
         }
       } else if (claimed.purpose === 'subscription') {
         const metadata = claimed.metadata || {};
